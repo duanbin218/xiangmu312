@@ -1,0 +1,108 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.so
+*.dylib
+
+# Byte-compiled / optimized / DLL files
+*.pyo
+
+# C extensions
+*.dll
+
+# =========================
+# Virtual environments
+# =========================
+.venv/
+venv/
+ENV/
+env/
+.ENV/
+.env/
+pip-wheel-metadata/
+
+# =========================
+# Distribution / packaging
+# =========================
+build/
+dist/
+eggs/
+*.egg-info/
+*.egg
+wheelhouse/
+pip-log.txt
+
+# =========================
+# PyInstaller
+# =========================
+*.manifest
+*.spec
+
+# =========================
+# Unit test / coverage
+# =========================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.nox/
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# =========================
+# Type check / lint
+# =========================
+.mypy_cache/
+.pyre/
+.ruff_cache/
+
+# =========================
+# Jupyter / IPython
+# =========================
+.ipynb_checkpoints/
+.profile_default/
+ipython_config.py
+
+# =========================
+# IDEs / editors
+# =========================
+.idea/
+.vscode/
+*.iml
+
+# =========================
+# OS / temp
+# =========================
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs
+*.log
+logs/
+log/
+
+# =========================
+# Secrets / local config (DO NOT COMMIT)
+# =========================
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+
+# Common local config files
+settings_local.json
+config_local.json
+local_settings.py
+secrets.*
