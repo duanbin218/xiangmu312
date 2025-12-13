@@ -16,11 +16,9 @@ TILE_WIDTH   = 48       # 游戏中 X 方向每格对应的屏幕像素
 TILE_HEIGHT  = 32       # 游戏中 Y 方向每格对应的屏幕像素
 DEFAULT_CIRCLE_RADIUS = 170  # 八方位点击圆半径
 
-# ================== kmNet 初始化 ==================
-kmNet.init("192.168.2.188", "1538", "86C2E466")
-
 # ================== 全局标志 & 事件 ==================
 exit_flag = False
+runtime_started = False  # 避免重复初始化 kmNet / 键盘监听
 
 # 抢占事件：主打怪线程用的延时会等待这个事件
 打怪_event = threading.Event()
@@ -52,8 +50,17 @@ def keyboard_listener():
         time.sleep(0.05)  # 降低 CPU 占用
 
 
-# 启动键盘监听线程（守护线程）
-threading.Thread(target=keyboard_listener, daemon=True).start()
+def init_runtime(ip="192.168.2.188", port="1538", token="86C2E466"):
+    """
+    显式初始化 kmNet 并启动键盘监听，避免 import 副作用。
+    重复调用将被忽略。
+    """
+    global runtime_started
+    if runtime_started:
+        return
+    kmNet.init(ip, port, token)
+    threading.Thread(target=keyboard_listener, daemon=True).start()
+    runtime_started = True
 
 # ================== 延时函数（毫秒） ==================
 def 打怪延时(毫秒: int):
@@ -427,6 +434,7 @@ def on_f3_press(event):
 
 
 if __name__ == "__main__":
+    init_runtime()
     keyboard.on_press_key('F3', on_f3_press)
     print("\n按下 F3 测试（按 ESC 退出）...")
     keyboard.wait('esc')
