@@ -15,6 +15,8 @@ import ai算法
 from kmNet类封装2 import *
 from 常量 import changliang as cl
 
+init_runtime()
+
 打怪控制 = 游戏控制器(delay_func=打怪延时)
 
 血量控制 = 游戏控制器(delay_func=血量延时)
