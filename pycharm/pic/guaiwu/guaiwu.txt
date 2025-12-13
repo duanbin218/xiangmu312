@@ -1,9 +1,0 @@
-pic/guaiwu/单机_暗之魔龙战将.bmp
-pic/guaiwu/单机_魔龙刀兵.bmp
-pic/guaiwu/单机_魔龙力士.bmp
-pic/guaiwu/单机_魔龙射手.bmp
-pic/guaiwu/单机_魔龙巨蛾.bmp
-pic/guaiwu/单机_魔龙战将.bmp
-pic/guaiwu/单机_魔龙破甲兵.bmp
-pic/guaiwu/S_单机_魔影巨人.bmp
-pic/guaiwu/单机_宝宝.bmp
