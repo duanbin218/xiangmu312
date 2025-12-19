@@ -25,3 +25,22 @@ MAP_CENTER_Y = 464           # 小地图/坐标系中心屏幕Y
 TILE_WIDTH = 48              # 游戏中 X 方向每格对应的屏幕像素
 TILE_HEIGHT = 32             # 游戏中 Y 方向每格对应的屏幕像素
 DEFAULT_CIRCLE_RADIUS = 170  # 八方位点击位置圆半径范围
+
+# 大漠初始化与绑定相关配置，集中管理便于切换环境。
+DM_REG_CODE = "duanbin2187ebec7e363f16ead014d9bb6365ebdf6"
+DM_ADD_CODE = "389749"
+GAME_PROCESS_NAME = "557ltss20251027.exe"
+GAME_WINDOW_TITLE_KEYWORD = "开放"
+GAME_WINDOW_CLASS = ""
+WINDOW_ENUM_FLAGS = 1 + 16
+
+# BindWindowEx 参数集中化，避免多处硬编码。
+BIND_DISPLAY = "gdi"
+BIND_MOUSE = "windows"
+BIND_KEYPAD = "windows"
+BIND_PUBLIC_DESC = ""
+BIND_MODE = 0
+
+# 窗口初始移动偏移，统一配置便于调整。
+WINDOW_MOVE_X = -3
+WINDOW_MOVE_Y = -26
