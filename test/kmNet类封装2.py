@@ -7,14 +7,7 @@ import threading
 import os
 import ctypes
 import math
-
-# ================== 地图/坐标相关全局常量 ==================
-# 统一中心点 & 格子尺寸，只改这里即可全局生效
-MAP_CENTER_X = 964      # 小地图/坐标系中心屏幕X
-MAP_CENTER_Y = 464      # 小地图/坐标系中心屏幕Y
-TILE_WIDTH   = 48       # 游戏中 X 方向每格对应的屏幕像素
-TILE_HEIGHT  = 32       # 游戏中 Y 方向每格对应的屏幕像素
-DEFAULT_CIRCLE_RADIUS = 170  # 八方位点击圆半径
+import config
 
 # ================== 全局标志 & 事件 ==================
 exit_flag = False
@@ -73,7 +66,7 @@ def keyboard_listener():
         time.sleep(0.05)  # 降低 CPU 占用
 
 
-def init_runtime(ip="192.168.2.188", port="1538", token="86C2E466"):
+def init_runtime(ip=config.KMNET_IP, port=config.KMNET_PORT, token=config.KMNET_TOKEN):
     """
     显式初始化 kmNet 并启动键盘监听，避免 import 副作用。
     重复调用将被忽略。
@@ -165,8 +158,7 @@ def 监控延时(毫秒: int):
         if elapsed_ms >= target_ms:
             break
 
-        remaining_ms = target_ms - target_ms + (target_ms - elapsed_ms)
-        remaining_ms = max(0, remaining_ms)
+        remaining_ms = max(0, target_ms - elapsed_ms)
         sleep_time = min(0.1, remaining_ms / 1000) if remaining_ms > 0 else 0.01
         time.sleep(sleep_time)
 
@@ -174,7 +166,7 @@ def 监控延时(毫秒: int):
 # ================== 统一控制类：鼠标/键盘 + 游戏坐标 ==================
 class 游戏控制器:
     def __init__(self, km=kmNet, delay_func=None,
-                 圆心x=MAP_CENTER_X, 圆心y=MAP_CENTER_Y, 半径r=DEFAULT_CIRCLE_RADIUS):
+                 圆心x=config.MAP_CENTER_X, 圆心y=config.MAP_CENTER_Y, 半径r=config.DEFAULT_CIRCLE_RADIUS):
         if delay_func is None:
             raise ValueError("必须传入延时函数 delay_func，例如 打怪延时/血量延时/监控延时")
 
@@ -353,10 +345,10 @@ class 游戏控制器:
     @classmethod
     def 屏幕坐标转游戏坐标(cls, 人物游戏x, 人物游戏y, 目标屏幕x, 目标屏幕y, 偏移量y=0):
         # 使用全局常量做中心点和格子尺寸
-        屏幕坐标x偏移量 = MAP_CENTER_X - 目标屏幕x
-        屏幕坐标y偏移量 = MAP_CENTER_Y + 偏移量y - 目标屏幕y
-        游戏坐标x偏移量 = 屏幕坐标x偏移量 / TILE_WIDTH
-        游戏坐标y偏移量 = 屏幕坐标y偏移量 / TILE_HEIGHT
+        屏幕坐标x偏移量 = config.MAP_CENTER_X - 目标屏幕x
+        屏幕坐标y偏移量 = config.MAP_CENTER_Y + 偏移量y - 目标屏幕y
+        游戏坐标x偏移量 = 屏幕坐标x偏移量 / config.TILE_WIDTH
+        游戏坐标y偏移量 = 屏幕坐标y偏移量 / config.TILE_HEIGHT
         整数x偏移量 = cls.custom_int(游戏坐标x偏移量)
         整数y偏移量 = cls.custom_int(游戏坐标y偏移量)
         游戏坐标x = int(人物游戏x) - int(整数x偏移量)
