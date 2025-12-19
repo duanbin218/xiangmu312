@@ -14,6 +14,8 @@ from 新大漠插件 import *
 import ai算法
 from kmNet类封装2 import *
 from 常量 import changliang as cl
+import config
+
 
 init_runtime()
 
@@ -25,7 +27,7 @@ init_runtime()
 
 
 # with open(r"./pic/guaiwu/guaiwu.txt",'r',encoding='UTF-8') as f:
-with open(r"./pic/guaiwu/longteng.txt", 'r', encoding='UTF-8') as f:
+with open(config.MONSTER_LIST_PATH, 'r', encoding='UTF-8') as f:
     怪物图片路径 = f.read()
     怪物图片路径 = 怪物图片路径.replace('\n','|')
     target = "pic/guaiwu/宝宝.bmp|"
@@ -36,9 +38,9 @@ with open(r"./pic/guaiwu/longteng.txt", 'r', encoding='UTF-8') as f:
     print(怪物路径列表)
     print(怪物图片路径_不包括宝宝)
 
-with open(r"./物品名字.txt",'r',encoding='ANSI') as f:
+with open(config.ITEM_NAME_PATH,'r',encoding='ANSI') as f:
     物品名称路径 = f.read()
-    物品名称路径 = 物品名称路径.replace('\n','|')+"士头|除魔|聚灵珠（小）|魔血石"
+    物品名称路径 = 物品名称路径.replace('\n','|')+config.ITEM_NAME_EXTRA
     物品名称列表 = 物品名称路径.split('|')
     print(物品名称路径)
 
@@ -62,14 +64,14 @@ class WorkerThread(QThread):
     def __init__(self,大漠对象,句柄,线程名):
         super().__init__()
         self.大漠对象 = 大漠对象
-        self.大漠对象.SetDict(0, r"./字库/数字.txt")
-        self.大漠对象.SetDict(1, r"./字库/系统字库 - 副本.txt")
-        self.大漠对象.SetDict(2, r"./字库/玩家字库.txt")
+        self.大漠对象.SetDict(0, config.DICT_NUM_PATH)
+        self.大漠对象.SetDict(1, config.DICT_SYS_PATH)
+        self.大漠对象.SetDict(2, config.DICT_PLAYER_PATH)
         self.句柄 = 句柄
         self.线程名 = 线程名
         # self.map_img = cv2.imread("D5073_mafagumu.bmp")
         # self.map_img = cv2.imread("sanrenzhijia.bmp")
-        self.map_img = cv2.imread("xinrenditu.bmp")
+        self.map_img = cv2.imread(config.MAP_IMAGE_PATH)
         self.宝宝在身边未攻击次数 = 0
 
     def run(self):
@@ -92,9 +94,6 @@ class WorkerThread(QThread):
         self.大漠对象.UseDict(2)
         while True:
 
-            打怪_stop_event.set()  # 标记：打怪线程当前那次“走路任务”作废
-            血量_stop_event.set()  # 标记：血量线程当前那次“走路任务”作废
-
             s = time.perf_counter()
             ret = self.大漠对象.FindStrEx(3, 2, 1918, 924, "D4|D5|D6|Z4|Z5|Z6|F4|F5|F6", 'ffffff-000000', 1)
             print(ret)
@@ -113,10 +112,10 @@ class WorkerThread(QThread):
                     if safe_point is not None:
                         path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 1, 1, 2, 1)
                         if path is not None:
-                            全局_event.clear()
+                            pause_all()
+                            mark_walk_stopped(打怪_stop_event,血量_stop_event) # 暂停所有线程同时,给所有线程做个标记,恢复所有线程时,重置所有线程中的循环
                             ret_path_list = self.沿路径控制人物行走_监控线程(path, False, False, 1, 1)
-                            全局_event.set()
-
+                            resume_all()
 
             e = time.perf_counter()
             t = e - s
@@ -187,15 +186,15 @@ class WorkerThread(QThread):
         try:
             while True:
 
-                打怪_stop_event.set()
-                血量_stop_event.clear()
+                if 血量_stop_event.is_set():
+                    血量_stop_event.clear()
 
                 当前血量, 最大血量 = self.识别血量()
                 self.jiankong.emit(f"当前血量:{当前血量}|最大血量:{最大血量}")
 
                 if 0 < 当前血量/最大血量 < 0.95:
-                    打怪_event.clear()  # 暂停打怪线程
-
+                    pause_combat()  # 暂停打怪线程
+                    mark_walk_stopped(打怪_stop_event) # 暂停打怪线程同时做个标记,恢复打怪线程时通过这个标识重置打怪线程循环
                     s = time.perf_counter()
 
                     # 找安全坐标点
@@ -244,12 +243,8 @@ class WorkerThread(QThread):
                             血量控制.键盘点击(60)
                             # 血量控制.随机延时(1400, 1600)
 
-                            当前血量, 最大血量 = self.识别血量()
-                            if 最大血量 == 当前血量 and 当前血量 != -1:
-                                打怪_event.set()  # 继续打怪线程
-
                 elif 0.95 <= 当前血量/最大血量 <= 1 and 当前血量 != -1:
-                    打怪_event.set()  # 继续打怪线程
+                    resume_combat()  # 继续打怪线程
                 elif 当前血量 == 0 :
                     self.jiankong.emit("人物已死亡,需要重新登录游戏")
                 time.sleep(0.1)
@@ -447,11 +442,7 @@ class WorkerThread(QThread):
             global bad_cells
             global last_clear_time
             global wupin_list
-            # 设置一个flag,如果是从其它线程中的Event.set()回到的打怪线程,打怪线程被暂停后重新继续,从循环头重新循环,当flag为True,检测宝宝是否在打怪
-            flag = False
             while True:
-
-                打怪_stop_event.clear()
 
                 # 每隔CLEAR_INTERVAL时间,清空wupin_list记录已捡物品的集合
                 now = time.time()
@@ -461,8 +452,8 @@ class WorkerThread(QThread):
                     print("定时清空 wupin_list",wupin_list)
                     last_clear_time = now
 
-                if flag ==True:
-                    flag = False
+                if 打怪_stop_event.is_set():      # "打怪_stop_event"为True,表示其他线程暂停过又恢复了打怪线程,那么检查宝宝是否打怪和检查周围是否有物品
+                    打怪_stop_event.clear()
                     self.fighting(150,119,1719,867)
                     物品游戏坐标列表 = self.捡物(561, 113, 1429, 730)
                     print("血量监测后,宝宝打死怪后物品列表:", 物品游戏坐标列表)
@@ -1109,13 +1100,13 @@ class MyWindow(QMainWindow):
         self.B组线程对象列表 = []
         self.C组线程对象列表 = []
 
-        self.map_img = cv2.imread("xinrenditu.bmp")
+        self.map_img = cv2.imread(config.MAP_IMAGE_PATH)
 
         # 大漠初始化,创建了dms_a[]/dms_b[]/dms_c[]3个列表的大漠对象
         大漠初始化("duanbin2187ebec7e363f16ead014d9bb6365ebdf6", '389749')
-        dms_a[0].SetDict(0, r"./字库/数字.txt")
-        dms_a[0].SetDict(1, r"./字库/系统字库 - 副本.txt")
-        dms_a[0].SetDict(2, r"./字库/玩家字库.txt")
+        dms_a[0].SetDict(0, config.DICT_NUM_PATH)
+        dms_a[0].SetDict(1, config.DICT_SYS_PATH)
+        dms_a[0].SetDict(2, config.DICT_PLAYER_PATH)
 
         返回_句柄 = dms_a[0].EnumWindowByProcess("557ltss20251027.exe","开放","",1+16)
         if 返回_句柄 != '':
