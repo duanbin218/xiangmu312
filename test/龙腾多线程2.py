@@ -14,6 +14,7 @@ from 新大漠插件 import *
 import ai算法
 from kmNet类封装2 import *
 from 常量 import changliang as cl
+import config  # Centralize paths/constants to keep threads consistent.
 
 init_runtime()
 
@@ -25,7 +26,7 @@ init_runtime()
 
 
 # with open(r"./pic/guaiwu/guaiwu.txt",'r',encoding='UTF-8') as f:
-with open(r"./pic/guaiwu/longteng.txt", 'r', encoding='UTF-8') as f:
+with open(config.MONSTER_LIST_PATH, 'r', encoding='UTF-8') as f:
     怪物图片路径 = f.read()
     怪物图片路径 = 怪物图片路径.replace('\n','|')
     target = "pic/guaiwu/宝宝.bmp|"
@@ -36,9 +37,9 @@ with open(r"./pic/guaiwu/longteng.txt", 'r', encoding='UTF-8') as f:
     print(怪物路径列表)
     print(怪物图片路径_不包括宝宝)
 
-with open(r"./物品名字.txt",'r',encoding='ANSI') as f:
+with open(config.ITEM_NAME_PATH, 'r', encoding='ANSI') as f:
     物品名称路径 = f.read()
-    物品名称路径 = 物品名称路径.replace('\n','|')+"士头|除魔|聚灵珠（小）|魔血石"
+    物品名称路径 = 物品名称路径.replace('\n','|') + config.ITEM_NAME_EXTRA
     物品名称列表 = 物品名称路径.split('|')
     print(物品名称路径)
 
@@ -62,14 +63,14 @@ class WorkerThread(QThread):
     def __init__(self,大漠对象,句柄,线程名):
         super().__init__()
         self.大漠对象 = 大漠对象
-        self.大漠对象.SetDict(0, r"./字库/数字.txt")
-        self.大漠对象.SetDict(1, r"./字库/系统字库 - 副本.txt")
-        self.大漠对象.SetDict(2, r"./字库/玩家字库.txt")
+        self.大漠对象.SetDict(0, config.DICT_NUM_PATH)
+        self.大漠对象.SetDict(1, config.DICT_SYS_PATH)
+        self.大漠对象.SetDict(2, config.DICT_PLAYER_PATH)
         self.句柄 = 句柄
         self.线程名 = 线程名
         # self.map_img = cv2.imread("D5073_mafagumu.bmp")
         # self.map_img = cv2.imread("sanrenzhijia.bmp")
-        self.map_img = cv2.imread("xinrenditu.bmp")
+        self.map_img = cv2.imread(config.MAP_IMAGE_PATH)
         self.宝宝在身边未攻击次数 = 0
 
     def run(self):
@@ -1099,13 +1100,13 @@ class MyWindow(QMainWindow):
         self.B组线程对象列表 = []
         self.C组线程对象列表 = []
 
-        self.map_img = cv2.imread("xinrenditu.bmp")
+        self.map_img = cv2.imread(config.MAP_IMAGE_PATH)
 
         # 大漠初始化,创建了dms_a[]/dms_b[]/dms_c[]3个列表的大漠对象
         大漠初始化("duanbin2187ebec7e363f16ead014d9bb6365ebdf6", '389749')
-        dms_a[0].SetDict(0, r"./字库/数字.txt")
-        dms_a[0].SetDict(1, r"./字库/系统字库 - 副本.txt")
-        dms_a[0].SetDict(2, r"./字库/玩家字库.txt")
+        dms_a[0].SetDict(0, config.DICT_NUM_PATH)
+        dms_a[0].SetDict(1, config.DICT_SYS_PATH)
+        dms_a[0].SetDict(2, config.DICT_PLAYER_PATH)
 
         返回_句柄 = dms_a[0].EnumWindowByProcess("557ltss20251027.exe","开放","",1+16)
         if 返回_句柄 != '':
