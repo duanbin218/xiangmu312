@@ -441,13 +441,7 @@ class WorkerThread(QThread):
             global bad_cells
             global last_clear_time
             global wupin_list
-            # 设置一个flag,如果是从其它线程中的Event.set()回到的打怪线程,打怪线程被暂停后重新继续,从循环头重新循环,当flag为True,检测宝宝是否在打怪
-            flag = False
             while True:
-
-                if 打怪_stop_event.is_set():
-                    打怪_stop_event.clear()
-                    flag = True
 
                 # 每隔CLEAR_INTERVAL时间,清空wupin_list记录已捡物品的集合
                 now = time.time()
@@ -457,8 +451,8 @@ class WorkerThread(QThread):
                     print("定时清空 wupin_list",wupin_list)
                     last_clear_time = now
 
-                if flag ==True:
-                    flag = False
+                if 打怪_stop_event.is_set():      # "打怪_stop_event"为True,表示其他线程暂停过又恢复了打怪线程,那么检查宝宝是否打怪和检查周围是否有物品
+                    打怪_stop_event.clear()
                     self.fighting(150,119,1719,867)
                     物品游戏坐标列表 = self.捡物(561, 113, 1429, 730)
                     print("血量监测后,宝宝打死怪后物品列表:", 物品游戏坐标列表)
