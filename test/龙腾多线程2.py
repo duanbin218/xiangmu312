@@ -54,6 +54,14 @@ bad_cells = set()
 CLEAR_INTERVAL = 60  # 间隔多少秒清空一次
 last_clear_time = time.time()  # 上次清空时间
 
+
+def 设置字库(大漠对象):
+    """集中设置字库，避免多个地方写错路径导致 OCR 不一致。"""
+    大漠对象.SetDict(0, config.DICT_NUM_PATH)
+    大漠对象.SetDict(1, config.DICT_SYS_PATH)
+    大漠对象.SetDict(2, config.DICT_PLAYER_PATH)
+
+
 class WorkerThread(QThread):
 
     caozuo = pyqtSignal(str)
@@ -63,9 +71,7 @@ class WorkerThread(QThread):
     def __init__(self,大漠对象,句柄,线程名):
         super().__init__()
         self.大漠对象 = 大漠对象
-        self.大漠对象.SetDict(0, config.DICT_NUM_PATH)
-        self.大漠对象.SetDict(1, config.DICT_SYS_PATH)
-        self.大漠对象.SetDict(2, config.DICT_PLAYER_PATH)
+        设置字库(self.大漠对象)  # 统一字库设置，避免线程间配置漂移
         self.句柄 = 句柄
         self.线程名 = 线程名
         # self.map_img = cv2.imread("D5073_mafagumu.bmp")
@@ -1103,36 +1109,60 @@ class MyWindow(QMainWindow):
 
         self.map_img = cv2.imread(config.MAP_IMAGE_PATH)
 
-        # 大漠初始化,创建了dms_a[]/dms_b[]/dms_c[]3个列表的大漠对象
-        大漠初始化("duanbin2187ebec7e363f16ead014d9bb6365ebdf6", '389749')
-        dms_a[0].SetDict(0, config.DICT_NUM_PATH)
-        dms_a[0].SetDict(1, config.DICT_SYS_PATH)
-        dms_a[0].SetDict(2, config.DICT_PLAYER_PATH)
+        # 大漠初始化参数集中到 config，便于环境切换与维护
+        大漠初始化(config.DM_REG_CODE, config.DM_ADD_CODE)
+        设置字库(dms_a[0])
 
-        返回_句柄 = dms_a[0].EnumWindowByProcess("557ltss20251027.exe","开放","",1+16)
+        返回_句柄 = dms_a[0].EnumWindowByProcess(
+            config.GAME_PROCESS_NAME,
+            config.GAME_WINDOW_TITLE_KEYWORD,
+            config.GAME_WINDOW_CLASS,
+            config.WINDOW_ENUM_FLAGS,
+        )
         if 返回_句柄 != '':
             self.句柄_列表 = 返回_句柄.split(',')
             self.句柄_列表 = [int(i) for i in self.句柄_列表]
             for A大漠对象,B大漠对象,C大漠对象,句柄 in zip(dms_a,dms_b,dms_c,self.句柄_列表):
                 窗口标题 = A大漠对象.GetWindowTitle(句柄)
-                返回_绑定 = A大漠对象.BindWindowEx(句柄, "gdi", "windows", "windows", "", 0)
+                返回_绑定 = A大漠对象.BindWindowEx(
+                    句柄,
+                    config.BIND_DISPLAY,
+                    config.BIND_MOUSE,
+                    config.BIND_KEYPAD,
+                    config.BIND_PUBLIC_DESC,
+                    config.BIND_MODE,
+                )
                 if 返回_绑定 == 1:
                     self.plainTextEdit.appendPlainText(f"A大漠对象|{窗口标题}|绑定成功")
                     time.sleep(2)
-                    A大漠对象.MoveWindow(句柄, -3, -26)
+                    A大漠对象.MoveWindow(句柄, config.WINDOW_MOVE_X, config.WINDOW_MOVE_Y)
                     # A大漠对象.MoveWindow(句柄, -8, -31)
                     self.A组线程对象列表.append(None)
                 else:
                     self.plainTextEdit.appendPlainText(f"A大漠对象{窗口标题}|绑定失败")
 
-                返回_绑定 = B大漠对象.BindWindowEx(句柄, "gdi", "windows", "windows", "", 0)
+                返回_绑定 = B大漠对象.BindWindowEx(
+                    句柄,
+                    config.BIND_DISPLAY,
+                    config.BIND_MOUSE,
+                    config.BIND_KEYPAD,
+                    config.BIND_PUBLIC_DESC,
+                    config.BIND_MODE,
+                )
                 if 返回_绑定 == 1:
                     self.plainTextEdit.appendPlainText(f"B大漠对象|{窗口标题}|绑定成功")
                     self.B组线程对象列表.append(None)
                 else:
                     self.plainTextEdit.appendPlainText(f"B大漠对象{窗口标题}|绑定失败")
 
-                返回_绑定 = C大漠对象.BindWindowEx(句柄, "gdi", "windows", "windows", "", 0)
+                返回_绑定 = C大漠对象.BindWindowEx(
+                    句柄,
+                    config.BIND_DISPLAY,
+                    config.BIND_MOUSE,
+                    config.BIND_KEYPAD,
+                    config.BIND_PUBLIC_DESC,
+                    config.BIND_MODE,
+                )
                 if 返回_绑定 == 1:
                     self.plainTextEdit.appendPlainText(f"C大漠对象|{窗口标题}|绑定成功")
                     self.C组线程对象列表.append(None)
