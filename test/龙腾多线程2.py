@@ -92,8 +92,6 @@ class WorkerThread(QThread):
         self.大漠对象.UseDict(2)
         while True:
 
-            mark_walk_stopped(打怪_stop_event, 血量_stop_event)  # 标记当前行走任务作废
-
             s = time.perf_counter()
             ret = self.大漠对象.FindStrEx(3, 2, 1918, 924, "D4|D5|D6|Z4|Z5|Z6|F4|F5|F6", 'ffffff-000000', 1)
             print(ret)
@@ -113,6 +111,7 @@ class WorkerThread(QThread):
                         path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 1, 1, 2, 1)
                         if path is not None:
                             pause_all()
+                            mark_walk_stopped(打怪_stop_event, 血量_stop_event)  # 标记当前行走任务作废
                             ret_path_list = self.沿路径控制人物行走_监控线程(path, False, False, 1, 1)
                             resume_all()
 
@@ -186,15 +185,15 @@ class WorkerThread(QThread):
         try:
             while True:
 
-                mark_walk_stopped(打怪_stop_event)
-                血量_stop_event.clear()
+                if 血量_stop_event.is_set():
+                    血量_stop_event.clear()
 
                 当前血量, 最大血量 = self.识别血量()
                 self.jiankong.emit(f"当前血量:{当前血量}|最大血量:{最大血量}")
 
                 if 0 < 当前血量/最大血量 < 0.95:
                     pause_combat()  # 暂停打怪线程
-
+                    mark_walk_stopped(打怪_stop_event)  # 暂停打怪线程同时做个标记,恢复打怪线程时通过这个标识重置打怪线程循环
                     s = time.perf_counter()
 
                     # 找安全坐标点
@@ -242,10 +241,6 @@ class WorkerThread(QThread):
                             # F3隐身,让怪物不要攻击自己
                             血量控制.键盘点击(60)
                             # 血量控制.随机延时(1400, 1600)
-
-                            当前血量, 最大血量 = self.识别血量()
-                            if 最大血量 == 当前血量 and 当前血量 != -1:
-                                resume_combat()  # 继续打怪线程
 
                 elif 0.95 <= 当前血量/最大血量 <= 1 and 当前血量 != -1:
                     resume_combat()  # 继续打怪线程
@@ -450,7 +445,9 @@ class WorkerThread(QThread):
             flag = False
             while True:
 
-                打怪_stop_event.clear()
+                if 打怪_stop_event.is_set():
+                    打怪_stop_event.clear()
+                    flag = True
 
                 # 每隔CLEAR_INTERVAL时间,清空wupin_list记录已捡物品的集合
                 now = time.time()
