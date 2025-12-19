@@ -92,8 +92,7 @@ class WorkerThread(QThread):
         self.大漠对象.UseDict(2)
         while True:
 
-            打怪_stop_event.set()  # 标记：打怪线程当前那次“走路任务”作废
-            血量_stop_event.set()  # 标记：血量线程当前那次“走路任务”作废
+            mark_walk_stopped(打怪_stop_event, 血量_stop_event)  # 标记当前行走任务作废
 
             s = time.perf_counter()
             ret = self.大漠对象.FindStrEx(3, 2, 1918, 924, "D4|D5|D6|Z4|Z5|Z6|F4|F5|F6", 'ffffff-000000', 1)
@@ -113,9 +112,9 @@ class WorkerThread(QThread):
                     if safe_point is not None:
                         path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 1, 1, 2, 1)
                         if path is not None:
-                            全局_event.clear()
+                            pause_all()
                             ret_path_list = self.沿路径控制人物行走_监控线程(path, False, False, 1, 1)
-                            全局_event.set()
+                            resume_all()
 
 
             e = time.perf_counter()
@@ -187,14 +186,14 @@ class WorkerThread(QThread):
         try:
             while True:
 
-                打怪_stop_event.set()
+                mark_walk_stopped(打怪_stop_event)
                 血量_stop_event.clear()
 
                 当前血量, 最大血量 = self.识别血量()
                 self.jiankong.emit(f"当前血量:{当前血量}|最大血量:{最大血量}")
 
                 if 0 < 当前血量/最大血量 < 0.95:
-                    打怪_event.clear()  # 暂停打怪线程
+                    pause_combat()  # 暂停打怪线程
 
                     s = time.perf_counter()
 
@@ -246,10 +245,10 @@ class WorkerThread(QThread):
 
                             当前血量, 最大血量 = self.识别血量()
                             if 最大血量 == 当前血量 and 当前血量 != -1:
-                                打怪_event.set()  # 继续打怪线程
+                                resume_combat()  # 继续打怪线程
 
                 elif 0.95 <= 当前血量/最大血量 <= 1 and 当前血量 != -1:
-                    打怪_event.set()  # 继续打怪线程
+                    resume_combat()  # 继续打怪线程
                 elif 当前血量 == 0 :
                     self.jiankong.emit("人物已死亡,需要重新登录游戏")
                 time.sleep(0.1)

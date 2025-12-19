@@ -32,6 +32,33 @@ runtime_started = False  # 避免重复初始化 kmNet / 键盘监听
 血量_stop_event = threading.Event()
 监控_stop_event = threading.Event()   # 监控要不要用看你需求
 
+# ========== 线程协作：语义化封装，避免各处随意 set/clear ==========
+def pause_all():
+    """暂停所有受控延时（打怪/血量），监控线程不受影响。"""
+    全局_event.clear()
+
+
+def resume_all():
+    """恢复所有受控延时。"""
+    全局_event.set()
+
+
+def pause_combat():
+    """暂停打怪线程的延时（血量/监控不受影响）。"""
+    打怪_event.clear()
+
+
+def resume_combat():
+    """恢复打怪线程的延时。"""
+    打怪_event.set()
+
+
+def mark_walk_stopped(*stop_events):
+    """标记当前行走任务作废，通知相应 stop_event。"""
+    for ev in stop_events:
+        if ev is not None:
+            ev.set()
+
 # ================== Windows 低层键盘监听 ==================
 user32 = ctypes.WinDLL('user32', use_last_error=True)
 
