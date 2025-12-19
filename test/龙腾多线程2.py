@@ -99,16 +99,17 @@ class WorkerThread(QThread):
             if ret != '':
                 ret1 = self.大漠对象.ExcludePos(ret, 0, 928, 373, 1005, 396)
                 if ret1 != '':
-                    frame = self.更新地图_玩家点()
+                    frame, _ = self.更新地图_玩家点()  # 修复：返回值是 (frame, players)
                     人物x,人物y = self.识别人物当前坐标(48, 1057, 108, 1078)
-                    visualize_move(
-                        frame, (人物x, 人物y), bin_safe_point,
-                        search_center=(人物x, 人物y), search_radius=30,
-                        show_risk=True, scale=5, window="demo_case",
-                        outfile="viz_demo.png"
-                    )
                     safe_point = ai算法.next_move_a((人物x,人物y),frame,(人物x,人物y),40,1)
                     if safe_point is not None:
+                        # 修复：使用 ai算法.visualize_move 并传入已计算的安全点
+                        ai算法.visualize_move(
+                            frame, (人物x, 人物y), safe_point,
+                            search_center=(人物x, 人物y), search_radius=30,
+                            show_risk=True, scale=5, window="demo_case",
+                            outfile="viz_demo.png"
+                        )
                         path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 1, 1, 2, 1)
                         if path is not None:
                             pause_all()
@@ -1143,9 +1144,11 @@ class MyWindow(QMainWindow):
             self.plainTextEdit.appendPlainText('未找到窗口句柄')
 
         # 鼠标按下和释放事件
-        self.pushButton = self.findChild(QPushButton, "self.pushButton_qujubing")
+        btn = self.findChild(QPushButton, "pushButton_qujubing")  # 修复：objectName 需使用实际控件名
+        if btn is not None:
+            self.pushButton_qujubing = btn  # 统一引用，避免 UI 名称漂移
 
-        if self.pushButton_qujubing:  # 如果成功找到按钮对象
+        if getattr(self, "pushButton_qujubing", None):  # 如果成功找到按钮对象
             # 给按钮安装事件过滤器（让窗口可以监听按钮的事件）
             self.pushButton_qujubing.installEventFilter(self)
         else:
@@ -1652,7 +1655,8 @@ class MyWindow(QMainWindow):
     def closeEvent(self, event):
         # pyqt_ui窗口关闭时触发的事件
         dms_a[0].UnBindWindow()
-        del dms[0]
+        if dms_a:
+            del dms_a[0]  # 修复：原代码使用不存在的 dms，避免 NameError
         event.accept()  # 允许关闭
         print("关闭")
 
