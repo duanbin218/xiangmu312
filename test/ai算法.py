@@ -4,6 +4,7 @@ import numpy as np
 import cv2
 import math
 import heapq
+import config  # 颜色协议集中在 config，避免算法与绘制不一致。
 
 # <计算出风险值最小的安全点>↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
 
@@ -22,14 +23,17 @@ def _clamp_center(center: Tuple[int, int], w: int, h: int) -> Tuple[int, int]:
     y = min(max(center[1], 0), h - 1)
     return x, y
 
-# 用来表示敌人信息的bgr在函数内写死
 def _parse_enemies(grid: np.ndarray):
     H, W, _ = grid.shape
-    # 注意：你这里的 BGR 编码我保持不变，只是照搬
-    S_mask = (grid[:, :, 2] == 255) & (grid[:, :, 1] == 19) & (grid[:, :, 0] == 19)
-    A_mask = (grid[:, :, 2] == 254) & (grid[:, :, 1] == 2)  & (grid[:, :, 0] == 7)
-    B_mask = (grid[:, :, 2] == 128) & (grid[:, :, 1] == 2)  & (grid[:, :, 0] == 7)
-    P_mask = (grid[:, :, 2] == 1)   & (grid[:, :, 1] == 30) & (grid[:, :, 0] == 20)
+    # 颜色协议从 config 读取，保证绘制/算法一致，避免风险计算失真。
+    sb, sg, sr = config.ENEMY_COLOR_S
+    ab, ag, ar = config.ENEMY_COLOR_A
+    bb, bg, br = config.ENEMY_COLOR_B
+    pb, pg, pr = config.PLAYER_COLOR
+    S_mask = (grid[:, :, 2] == sr) & (grid[:, :, 1] == sg) & (grid[:, :, 0] == sb)
+    A_mask = (grid[:, :, 2] == ar) & (grid[:, :, 1] == ag) & (grid[:, :, 0] == ab)
+    B_mask = (grid[:, :, 2] == br) & (grid[:, :, 1] == bg) & (grid[:, :, 0] == bb)
+    P_mask = (grid[:, :, 2] == pr) & (grid[:, :, 1] == pg) & (grid[:, :, 0] == pb)
 
     enemies: List[Tuple[Tuple[int, int], int, int]] = []
 
@@ -1265,7 +1269,6 @@ def _demo_visual(grid: np.ndarray):
     )
 
 # </可视化显示>↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑
-
 
 
 

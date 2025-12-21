@@ -53,3 +53,10 @@ PLAYER_SCAN_RECT = (3, 2, 1918, 924)
 PLAYER_EXCLUDE_RECT = (928, 373, 1005, 396)
 PLAYER_SCREEN_OFFSET_X = 7
 PLAYER_SCREEN_OFFSET_Y = 83
+
+# 颜色协议（BGR），与 ai算法._parse_enemies 保持一致。
+ENEMY_COLOR_S = (19, 19, 255)   # 高危怪：半径/权重更大
+ENEMY_COLOR_A = (7, 2, 254)     # 中危怪
+ENEMY_COLOR_B = (7, 2, 128)     # 低危怪（预留）
+PLAYER_COLOR = (20, 30, 1)      # 玩家点颜色，用于避让/风险计算
+PET_COLOR = (0, 0, 100)         # 宝宝/宠物标记
