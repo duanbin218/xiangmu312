@@ -99,13 +99,13 @@ class WorkerThread(QThread):
         while True:
 
             s = time.perf_counter()
-            ret = self.大漠对象.FindStrEx(3, 2, 1918, 924, "D4|D5|D6|Z4|Z5|Z6|F4|F5|F6", 'ffffff-000000', 1)
+            ret = self.大漠对象.FindStrEx(*config.大范围识别玩家区域, "D4|D5|D6|Z4|Z5|Z6|F4|F5|F6", 'ffffff-000000', 1)
             print(ret)
             if ret != '':
-                ret1 = self.大漠对象.ExcludePos(ret, 0, 928, 373, 1005, 396)
+                ret1 = self.大漠对象.ExcludePos(ret, 0, *config.排除人物等级区域)
                 if ret1 != '':
                     frame,players = self.更新地图_玩家点()
-                    人物x,人物y = self.识别人物当前坐标(48, 1057, 108, 1078)
+                    人物x,人物y = self.识别人物当前坐标(*config.识别人物坐标区域)
                     safe_point = ai算法.next_move_a((人物x,人物y),frame,(人物x,人物y),40,1)
                     if safe_point is not None:
                         ai算法.visualize_move(
@@ -128,7 +128,7 @@ class WorkerThread(QThread):
 
 
     def 识别血量(self):
-        识别结果 = self.大漠对象.Ocr(21, 1042, 81, 1055, "#255-50|#253-50", 1)
+        识别结果 = self.大漠对象.Ocr(*config.识别人物血量区域, "#255-50|#253-50", 1)
         if 识别结果 != '':
             识别结果 = 识别结果.strip(":")
             分割结果 = 识别结果.split('/')
@@ -180,7 +180,7 @@ class WorkerThread(QThread):
 
     def 更新地图_玩家点(self):
         frame = self.map_img.copy()
-        玩家坐标列表 = self.识别玩家坐标(3, 2, 1918, 924)
+        玩家坐标列表 = self.识别玩家坐标(*config.大范围识别玩家区域)
         if 玩家坐标列表:
             print("玩家坐标列表", 玩家坐标列表)
             frame = self.地图上绘制玩家点(frame, 玩家坐标列表)
@@ -202,7 +202,7 @@ class WorkerThread(QThread):
                     s = time.perf_counter()
 
                     # 找安全坐标点
-                    人物x,人物y = self.识别人物当前坐标(48, 1057, 108, 1078)
+                    人物x,人物y = self.识别人物当前坐标(*config.识别人物坐标区域)
                     z, x, y = self.大漠对象.AiFindPic(150,119,1719,867, r"./pic/guaiwu/宝宝.bmp", 0.60, 0)
                     # z, x, y = self.大漠对象.AiFindPic(543, 98, 1370, 714, r"./pic/guaiwu/单机_宝宝.bmp", 0.60, 0)
                     # 找到宝宝坐标,以宝宝坐标为中心找安全坐标点
@@ -220,7 +220,7 @@ class WorkerThread(QThread):
                             bin_safe_point = ai算法.next_move_a((人物x, 人物y), frame, (宝宝x,宝宝y), None,1)
                     else:
                     # 未找到宝宝坐标,以人物坐标为中心找安全坐标点
-                        人物x,人物y = self.识别人物当前坐标(48, 1057, 108, 1078)
+                        人物x,人物y = self.识别人物当前坐标(*config.识别人物坐标区域)
                         if 0.75 < 当前血量/最大血量 < 0.95:
                             bin_safe_point = ai算法.next_move_a((人物x,人物y),frame,(人物x, 人物y),5,1)
                         elif 0 < 当前血量/最大血量 <= 0.75:
@@ -297,7 +297,7 @@ class WorkerThread(QThread):
             self.大漠对象.UseDict(0)
 
             # 正版龙腾范围 48, 1057, 108, 1078  # 单机版龙腾范围 84,1061,128,1077
-            人物x,人物y = self.识别人物当前坐标(48, 1057, 108, 1078)
+            人物x,人物y = self.识别人物当前坐标(*config.识别人物坐标区域)
             img = cv2.imread(img_path)
             if img is None:
                 raise RuntimeError(f"读图失败: {img_path}")
@@ -386,18 +386,18 @@ class WorkerThread(QThread):
     def 识别玩家坐标(self,x1,y1,x2,y2):
         try:
             self.大漠对象.UseDict(2)
-            ret = self.大漠对象.FindStrEx(3, 2, 1918, 924, "D4|D5|D6|Z4|Z5|Z6|F4|F5|F6", 'ffffff-000000', 1)
+            ret = self.大漠对象.FindStrEx(x1,y1,x2,y2, "D4|D5|D6|Z4|Z5|Z6|F4|F5|F6", 'ffffff-000000', 1)
             # 7 83
             if ret != "" :
-                ret1 = self.大漠对象.ExcludePos(ret,0,928,373,1005,396)
+                ret1 = self.大漠对象.ExcludePos(ret, 0, *config.排除人物等级区域)
                 if ret1 != '':
-                    人物坐标x, 人物坐标y = self.识别人物当前坐标(48, 1057, 108, 1078)
+                    人物坐标x, 人物坐标y = self.识别人物当前坐标(*config.识别人物坐标区域)
                     玩家坐标列表 = []
                     ret1_list = ret1.split('|')
                     for i in ret1_list:
                         i_list = i.split(',')
-                        玩家屏幕x = int(i_list[1]) + 7
-                        玩家屏幕y = int(i_list[2]) + 83
+                        玩家屏幕x = int(i_list[1]) + config.等级与中心点的X偏移
+                        玩家屏幕y = int(i_list[2]) + config.等级与中心点的Y偏移
                         游戏坐标x,游戏坐标y = 监控控制.屏幕坐标转游戏坐标(人物坐标x,人物坐标y,玩家屏幕x,玩家屏幕y)
                         玩家坐标列表.append((游戏坐标x,游戏坐标y))
                     return 玩家坐标列表
@@ -411,7 +411,7 @@ class WorkerThread(QThread):
         找图找到范围内所有怪物的屏幕坐标,转换成游戏坐标,按(怪物名称,怪物游戏x,怪物游戏y)元组的形式存储到列表中
         """
         img_path = path
-        人物坐标x, 人物坐标y = self.识别人物当前坐标(48, 1057, 108, 1078)
+        人物坐标x, 人物坐标y = self.识别人物当前坐标(*config.识别人物坐标区域)
         返回_找图AIEx = self.大漠对象.AiFindPicEx(x1,y1,x2,y2, fr"./{img_path}", sim, 0)
         if 返回_找图AIEx != '':
             返回_找图AIEx_list = 返回_找图AIEx.split('|')
@@ -467,7 +467,7 @@ class WorkerThread(QThread):
                                 print("血量监测后,宝宝打死怪后捡取物品", 物品[0])
                                 物品坐标x = 物品[1][0]
                                 物品坐标y = 物品[1][1]
-                                人物x, 人物y = self.识别人物当前坐标(60, 1061, 109, 1075)
+                                人物x, 人物y = self.识别人物当前坐标(*config.识别人物坐标区域)
                                 frame = self.更新地图_怪物点()
                                 path = ai算法.a_star_eight(人物x, 人物y, 物品坐标x, 物品坐标y, frame, 1, 0, 1, 1, 1)
                                 print('血量监测后,宝宝打死怪后捡物品寻路路径:', path)
@@ -475,7 +475,7 @@ class WorkerThread(QThread):
                                 wupin_list.add(物品)
 
                 frame = self.map_img.copy()
-                人物x, 人物y = self.识别人物当前坐标(60,1061,109,1075)
+                人物x, 人物y = self.识别人物当前坐标(*config.识别人物坐标区域)
 
                 怪物列表_包括宝宝 = self.识别怪物坐标(5, 28, 1916, 823,怪物图片路径,0.82)
                 怪物列表_不包括宝宝 = [item for item in 怪物列表_包括宝宝 if '宝宝' not in item[0]]
@@ -511,7 +511,7 @@ class WorkerThread(QThread):
                     # 宝宝在人物一边,怪物在人物另一边,宝宝和怪物被人物隔开了,比如人物要进门打怪,但是人物卡在了门口
                     if self.宝宝在身边未攻击次数 > 5:
                         print('人物卡在门口,把宝宝和怪物分开了,宝宝不能打怪')
-                        人物x, 人物y = self.识别人物当前坐标(48, 1057, 108, 1078)
+                        人物x, 人物y = self.识别人物当前坐标(*config.识别人物坐标区域)
                         frame = self.更新地图_怪物点()
                         safe_point = ai算法.next_move_a((人物x, 人物y), frame, (人物x, 人物y), None, 1)
                         print('宝宝在身边未攻击次数大于5后安全点坐标',safe_point)
@@ -531,7 +531,7 @@ class WorkerThread(QThread):
                             if 物品 not in wupin_list:
                                 物品坐标x = 物品[1][0]
                                 物品坐标y = 物品[1][1]
-                                人物x, 人物y = self.识别人物当前坐标(60, 1061, 109, 1075)
+                                人物x, 人物y = self.识别人物当前坐标(*config.识别人物坐标区域)
                                 frame = self.更新地图_怪物点()
                                 path = ai算法.a_star_eight(人物x, 人物y, 物品坐标x, 物品坐标y, frame, 1, 0, 1, 1, 1)
                                 print('召唤宝宝后捡物品寻路路径:',path)
@@ -550,7 +550,7 @@ class WorkerThread(QThread):
                                 print("宝宝打死怪后捡取物品", 物品[0])
                                 物品坐标x = 物品[1][0]
                                 物品坐标y = 物品[1][1]
-                                人物x, 人物y = self.识别人物当前坐标(60, 1061, 109, 1075)
+                                人物x, 人物y = self.识别人物当前坐标(*config.识别人物坐标区域)
                                 frame = self.更新地图_怪物点()
                                 path = ai算法.a_star_eight(人物x, 人物y, 物品坐标x, 物品坐标y, frame, 1, 0, 1, 1, 1)
                                 print('宝宝打死怪后捡物品寻路路径:', path)
@@ -559,7 +559,7 @@ class WorkerThread(QThread):
 
                 # 找图发现周围没有怪后的操作
                 else:
-                    人物x,人物y = self.识别人物当前坐标(48, 1057, 108, 1078)
+                    人物x,人物y = self.识别人物当前坐标(*config.识别人物坐标区域)
                     # point = [(80,8),(58,8),(6,20),(9,65)]
                     point = [(18,141),(236,60),(72,357),(265,309)]
                     i = random.randint(0, 3)
@@ -669,7 +669,7 @@ class WorkerThread(QThread):
             打怪控制.延时(1000)
         else:
             print('3次找图没有找到宝宝,这里不能召唤宝宝,移动人物换个地方召唤')
-            人物x,人物y = self.识别人物当前坐标(48, 1057, 108, 1078)
+            人物x,人物y = self.识别人物当前坐标(*config.识别人物坐标区域)
             frame = self.更新地图_怪物点()
             safe_point = ai算法.next_move_a((人物x, 人物y), frame, (人物x, 人物y), None,1)
             path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 1, 1, 1, 1)
@@ -681,7 +681,7 @@ class WorkerThread(QThread):
             for i in range(30):
                 # 走到可以接镖车的位置
                 while True:
-                    识别结果 = self.大漠对象.Ocr(48, 1057, 108, 1078, "#255-50|#253-50", 1)
+                    识别结果 = self.大漠对象.Ocr(*config.识别人物坐标区域, "#255-50|#253-50", 1)
                     if 识别结果 != '':
                         分割结果 = 识别结果.split(':')
                         人物x = int(分割结果[0])
@@ -724,7 +724,7 @@ class WorkerThread(QThread):
                     打怪控制.随机延时(50, 100)
                 # 接到镖车走到交镖车位置
                 while True:
-                    识别结果 = self.大漠对象.Ocr(48, 1057, 108, 1078, "#255-50|#253-50", 1)
+                    识别结果 = self.大漠对象.Ocr(*config.识别人物坐标区域, "#255-50|#253-50", 1)
                     if 识别结果 != '':
                         分割结果 = 识别结果.split(':')
                         人物x = int(分割结果[0])
@@ -822,7 +822,7 @@ class WorkerThread(QThread):
             return
 
         # ===== 入场检查：人物是否在路径起点附近 =====
-        cur = self.识别人物当前坐标(48, 1057, 108, 1078)  # 这里用你统一后的参数
+        cur = self.识别人物当前坐标(*config.识别人物坐标区域)  # 这里用你统一后的参数
         if not cur or cur[0] < 0 or cur[1] < 0:
             print("警告: 入场时无法识别人 物坐标，放弃本次行走")
             return
@@ -888,7 +888,7 @@ class WorkerThread(QThread):
                         print('大范围检测到怪,停止寻路,清空bad_cells:', bad_cells)
                         return road_list
 
-                cur = self.识别人物当前坐标(49,1061,105,1075)
+                cur = self.识别人物当前坐标(*config.识别人物坐标区域)
                 # OCR 失败直接下一轮
                 if not cur or cur[0] < 0 or cur[1] < 0:
                     time.sleep(0.05)
@@ -1233,7 +1233,7 @@ class MyWindow(QMainWindow):
             frame,players = self.更新地图_玩家点()
             e1 = time.perf_counter()
             print("更新地图耗时:",e1-s1)
-            人物x, 人物y = self.识别人物当前坐标(48, 1057, 108, 1078)
+            人物x, 人物y = self.识别人物当前坐标(*config.识别人物坐标区域)
 
             s2 = time.perf_counter()
             safe_point = ai算法.next_move_a((人物x, 人物y), frame, (人物x, 人物y), search_radius=25, selection_method=1,players=players,escape_mode='away')
@@ -1248,7 +1248,6 @@ class MyWindow(QMainWindow):
             cv2.waitKey(1)
             if safe_point is not None:
                 s3 = time.perf_counter()
-                # path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 1, 1, 2, 1)
                 path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 0, 0, 0.001, 0)
                 e3 = time.perf_counter()
                 print("计算path耗时:", e3 - s3)
@@ -1256,7 +1255,7 @@ class MyWindow(QMainWindow):
                 print("a星寻路路径点",path)
                 if path is not None:
                     ai算法.visualize_grid_and_path(frame, path=path, win_name="path", cell_size=15)
-                    ret_path_list = self.沿路径控制人物行走(path, False, False, 0, 1)
+                    ret_path_list = self.沿路径控制人物行走(path, False, False, 0, 0)
                     print("实际移动路径点",ret_path_list)
                     ai算法.visualize_grid_and_path(frame, path=ret_path_list, win_name="ret_path_list", cell_size=15)
 
@@ -1286,7 +1285,7 @@ class MyWindow(QMainWindow):
 
     def 更新地图_玩家点(self):
         frame = self.map_img.copy()
-        玩家坐标列表 = self.识别玩家坐标(3, 2, 1918, 924)
+        玩家坐标列表 = self.识别玩家坐标(*config.大范围识别玩家区域)
         if 玩家坐标列表:
             print("玩家坐标列表",玩家坐标列表)
             frame = self.地图上绘制玩家点(frame,玩家坐标列表)
@@ -1295,19 +1294,19 @@ class MyWindow(QMainWindow):
     def 识别玩家坐标(self,x1,y1,x2,y2):
         try:
             dms_a[0].UseDict(2)
-            ret = dms_a[0].FindStrEx(3, 2, 1918, 924, "D4|D5|D6|Z4|Z5|Z6|F4|F5|F6", 'ffffff-000000', 1)
+            ret = dms_a[0].FindStrEx(x1, y1, x2, y2, "D4|D5|D6|Z4|Z5|Z6|F4|F5|F6", 'ffffff-000000', 1)
             # 7 83
             if ret != "" :
-                ret1 = dms_a[0].ExcludePos(ret,0,928,373,1005,396)
+                ret1 = dms_a[0].ExcludePos(ret, 0, *config.排除人物等级区域)
                 print(ret1)
                 if ret1 != '':
-                    人物坐标x, 人物坐标y = self.识别人物当前坐标(48, 1057, 108, 1078)
+                    人物坐标x, 人物坐标y = self.识别人物当前坐标(*config.识别人物坐标区域)
                     玩家坐标列表 = []
                     ret1_list = ret1.split('|')
                     for i in ret1_list:
                         i_list = i.split(',')
-                        玩家屏幕x = int(i_list[1]) + 7
-                        玩家屏幕y = int(i_list[2]) + 83
+                        玩家屏幕x = int(i_list[1]) + config.等级与中心点的X偏移
+                        玩家屏幕y = int(i_list[2]) + config.等级与中心点的Y偏移
                         游戏坐标x,游戏坐标y = 监控控制.屏幕坐标转游戏坐标(人物坐标x,人物坐标y,玩家屏幕x,玩家屏幕y)
                         玩家坐标列表.append((游戏坐标x,游戏坐标y))
                     return 玩家坐标列表
@@ -1373,7 +1372,7 @@ class MyWindow(QMainWindow):
             return
 
         # ===== 入场检查：人物是否在路径起点附近 =====
-        cur = self.识别人物当前坐标(48, 1057, 108, 1078)  # 这里用你统一后的参数
+        cur = self.识别人物当前坐标(*config.识别人物坐标区域)  # 这里用你统一后的参数
         if not cur or cur[0] < 0 or cur[1] < 0:
             print("警告: 入场时无法识别人 物坐标，放弃本次行走")
             return
@@ -1439,7 +1438,7 @@ class MyWindow(QMainWindow):
                         print('大范围检测到怪,停止寻路,清空bad_cells:', bad_cells)
                         return road_list
 
-                cur = self.识别人物当前坐标(49,1061,105,1075)
+                cur = self.识别人物当前坐标(*config.识别人物坐标区域)
                 # OCR 失败直接下一轮
                 if not cur or cur[0] < 0 or cur[1] < 0:
                     time.sleep(0.05)
