@@ -144,24 +144,27 @@ class WorkerThread(QThread):
         # 地图上绘制危险级别 S 的怪
         S_list = [(a, b) for path, a, b in 怪物坐标列表 if 'S' in path]
         if S_list :
+            sb, sg, sr = config.ENEMY_COLOR_S
             for (mx, my) in S_list:
-                img[my, mx][0] = 7
-                img[my, mx][1] = 2
-                img[my, mx][2] = 254
+                img[my, mx][0] = sb
+                img[my, mx][1] = sg
+                img[my, mx][2] = sr
         # 地图上绘制危险级别 A 的怪
         A_list = [(a, b) for path, a, b in 怪物坐标列表 if 'S' not in path]
         if A_list :
+            ab, ag, ar = config.ENEMY_COLOR_A
             for (mx, my) in A_list:
-                img[my, mx][0] = 7
-                img[my, mx][1] = 2
-                img[my, mx][2] = 128
+                img[my, mx][0] = ab
+                img[my, mx][1] = ag
+                img[my, mx][2] = ar
         # 地图上绘制宝宝
         baobao_list = [(a, b) for path, a, b in 怪物坐标列表 if '宝宝' in path]
         if baobao_list :
+            pb, pg, pr = config.PET_COLOR
             for (mx, my) in baobao_list:
-                img[my, mx][0] = 0
-                img[my, mx][1] = 0
-                img[my, mx][2] = 100
+                img[my, mx][0] = pb
+                img[my, mx][1] = pg
+                img[my, mx][2] = pr
         return img
 
     def 更新地图_怪物点(self):
@@ -172,10 +175,11 @@ class WorkerThread(QThread):
         return frame
 
     def 地图上绘制玩家点(self,img,玩家坐标列表:list):
+        pb, pg, pr = config.PLAYER_COLOR
         for (mx,my) in 玩家坐标列表:
-            img[my, mx][0] = 30
-            img[my, mx][1] = 30
-            img[my, mx][2] = 1
+            img[my, mx][0] = pb
+            img[my, mx][1] = pg
+            img[my, mx][2] = pr
         return img
 
     def 更新地图_玩家点(self):
@@ -1277,10 +1281,11 @@ class MyWindow(QMainWindow):
         return -1,-1
 
     def 地图上绘制玩家点(self,img,玩家坐标列表:list):
+        pb, pg, pr = config.PLAYER_COLOR
         for (mx,my) in 玩家坐标列表:
-            img[my, mx][0] = 20
-            img[my, mx][1] = 30
-            img[my, mx][2] = 1
+            img[my, mx][0] = pb
+            img[my, mx][1] = pg
+            img[my, mx][2] = pr
         return img
 
     def 更新地图_玩家点(self):
