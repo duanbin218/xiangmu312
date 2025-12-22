@@ -135,25 +135,6 @@ class WorkerThread(QThread):
             print("找字用时:", t)
             监控控制.延时(100)
 
-
-    def 识别血量(self):
-        识别结果 = self.大漠对象.Ocr(*config.OCR_HP_RECT, "#255-50|#253-50", 1)
-        if 识别结果 != '':
-            try:
-                识别结果 = 识别结果.strip(":")
-                分割结果 = 识别结果.split('/')
-                if len(分割结果) != 2:
-                    return -1, -1
-                当前血量 = int(分割结果[0])
-                最大血量 = int(分割结果[1])
-                # self.jiankong.emit(f"当前血量:{当前血量}|最大血量:{最大血量}")
-                return 当前血量,最大血量
-            except Exception:
-                # OCR 噪声导致解析异常时返回无效值，避免线程异常中断
-                return -1, -1
-        else:
-            return -1,-1
-
     # 在地图上用特定颜色绘制怪物坐标点,这里设置的颜色值要和AI模块中的_parse_enemies()函数中设置的一致
     def 地图上绘制怪物点(self,img,怪物坐标列表:list):
         # 地图上绘制危险级别 S 的怪
@@ -216,7 +197,7 @@ class WorkerThread(QThread):
                 if 血量_stop_event.is_set():
                     血量_stop_event.clear()
 
-                当前血量, 最大血量 = self.识别血量()
+                当前血量, 最大血量 = dm_utils.ocr_hp(self.大漠对象)
                 self.jiankong.emit(f"当前血量:{当前血量}|最大血量:{最大血量}")
 
                 if 当前血量 == 0:

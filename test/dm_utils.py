@@ -4,6 +4,31 @@
 import re
 import config
 
+OCR_NUMBER_COLOR = "#255-50|#253-50"  # 统一数字类 OCR 颜色阈值，避免多处硬编码漂移
+
+
+def _parse_int_pair(text, sep):
+    """
+    解析 OCR 字符串中的两个整数。
+    - 优先按指定分隔符解析（例如 ":" 或 "/"）
+    - 解析失败时兜底提取数字，降低噪声影响
+    """
+    text = text.strip().replace("：", ":").replace(" ", "")
+    if sep in text:
+        parts = text.split(sep)
+        if len(parts) == 2:
+            try:
+                return int(parts[0]), int(parts[1])
+            except Exception:
+                pass
+    nums = re.findall(r"-?\d+", text)
+    if len(nums) >= 2:
+        try:
+            return int(nums[0]), int(nums[1])
+        except Exception:
+            return -1, -1
+    return -1, -1
+
 
 def ocr_player_pos(dm, rect=None):
     """
@@ -15,27 +40,26 @@ def ocr_player_pos(dm, rect=None):
         rect = config.OCR_PLAYER_POS_MAIN
     x1, y1, x2, y2 = rect
     dm.UseDict(0)
-    text = dm.Ocr(x1, y1, x2, y2, "#255-50|#253-50", 1)
+    text = dm.Ocr(x1, y1, x2, y2, OCR_NUMBER_COLOR, 1)
     if text == "":
         return -1, -1
-    # 统一清理 OCR 文本，兼容中文冒号/空格等噪声
-    text = text.strip().replace("：", ":").replace(" ", "")
-    if ":" in text:
-        parts = text.split(":")
-        if len(parts) == 2:
-            try:
-                return int(parts[0]), int(parts[1])
-            except Exception:
-                pass
-    # 兜底：提取数字，避免格式异常导致坐标丢失
-    nums = re.findall(r"-?\d+", text)
-    if len(nums) >= 2:
-        try:
-            return int(nums[0]), int(nums[1])
-        except Exception:
-            # OCR 噪声或格式异常时不打断流程
-            return -1, -1
-    return -1, -1
+    # 统一解析入口，降低 OCR 噪声造成的坐标丢失
+    return _parse_int_pair(text, ":")
+
+
+def ocr_hp(dm, rect=None):
+    """
+    通用血量 OCR。
+    - 统一颜色阈值与解析逻辑，避免不同线程判断不一致
+    - 解析失败时返回 (-1, -1)，避免误判
+    """
+    if rect is None:
+        rect = config.OCR_HP_RECT
+    dm.UseDict(0)
+    text = dm.Ocr(*rect, OCR_NUMBER_COLOR, 1)
+    if text == "":
+        return -1, -1
+    return _parse_int_pair(text, "/")
 
 
 def scan_players(dm, screen_to_game, player_pos=None, player_rect=None):
