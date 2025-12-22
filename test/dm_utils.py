@@ -34,6 +34,7 @@ def scan_players(dm, screen_to_game, player_pos=None, player_rect=None):
     - 统一 FindStrEx/ExcludePos/屏幕偏移逻辑
     - 解析失败返回空列表，避免中断主流程
     """
+    # 优先使用传入的 player_pos，避免重复 OCR
     if player_pos is None:
         player_pos = ocr_player_pos(dm, player_rect)
     px, py = player_pos

@@ -98,21 +98,21 @@ class WorkerThread(QThread):
             self.监控线程()
 
     def 监控线程(self):
-        self.大漠对象.UseDict(2)
         while True:
 
             s = time.perf_counter()
             # 使用统一的玩家扫描逻辑，避免重复 FindStrEx/ExcludePos
+            player_pos = dm_utils.ocr_player_pos(self.大漠对象, config.OCR_PLAYER_POS_MAIN)
             players = dm_utils.scan_players(
                 self.大漠对象,
                 监控控制.屏幕坐标转游戏坐标,
-                player_rect=config.OCR_PLAYER_POS_MAIN,
+                player_pos=player_pos,  # 复用 OCR 结果，减少重复识别与字典切换
             )
             if players:
                 # 直接用扫描结果绘制，避免再次 OCR/找字
                 frame = self.map_img.copy()
                 frame = self.地图上绘制玩家点(frame, players)
-                人物x,人物y = dm_utils.ocr_player_pos(self.大漠对象)
+                人物x,人物y = player_pos
                 safe_point = ai算法.next_move_a((人物x,人物y),frame,(人物x,人物y),40,1)
                 if safe_point is not None:
                     # 修复：使用 ai_visual.visualize_move 并传入已计算的安全点
