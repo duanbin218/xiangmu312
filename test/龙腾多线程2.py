@@ -102,28 +102,32 @@ class WorkerThread(QThread):
         while True:
 
             s = time.perf_counter()
-            ret = self.大漠对象.FindStrEx(*config.PLAYER_SCAN_RECT, "D4|D5|D6|Z4|Z5|Z6|F4|F5|F6", 'ffffff-000000', 1)
-            print(ret)
-            if ret != '':
-                ret1 = self.大漠对象.ExcludePos(ret, 0,*config.PLAYER_EXCLUDE_RECT)
-                if ret1 != '':
-                    frame, _ = self.更新地图_玩家点()  # 修复：返回值是 (frame, players)
-                    人物x,人物y = dm_utils.ocr_player_pos(self.大漠对象)
-                    safe_point = ai算法.next_move_a((人物x,人物y),frame,(人物x,人物y),40,1)
-                    if safe_point is not None:
-                        # 修复：使用 ai_visual.visualize_move 并传入已计算的安全点
-                        ai_visual.visualize_move(
-                            frame, (人物x, 人物y), safe_point,
-                            search_center=(人物x, 人物y), search_radius=30,
-                            show_risk=True, scale=5, window="demo_case",
-                            outfile="viz_demo.png"
-                        )
-                        path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 1, 1, 2, 1)
-                        if path is not None:
-                            pause_all()
-                            mark_walk_stopped(打怪_stop_event, 血量_stop_event)  # 标记当前行走任务作废
-                            ret_path_list = self.沿路径控制人物行走_监控线程(path, False, False, 1, 1)
-                            resume_all()
+            # 使用统一的玩家扫描逻辑，避免重复 FindStrEx/ExcludePos
+            players = dm_utils.scan_players(
+                self.大漠对象,
+                监控控制.屏幕坐标转游戏坐标,
+                player_rect=config.OCR_PLAYER_POS_MAIN,
+            )
+            if players:
+                # 直接用扫描结果绘制，避免再次 OCR/找字
+                frame = self.map_img.copy()
+                frame = self.地图上绘制玩家点(frame, players)
+                人物x,人物y = dm_utils.ocr_player_pos(self.大漠对象)
+                safe_point = ai算法.next_move_a((人物x,人物y),frame,(人物x,人物y),40,1)
+                if safe_point is not None:
+                    # 修复：使用 ai_visual.visualize_move 并传入已计算的安全点
+                    ai_visual.visualize_move(
+                        frame, (人物x, 人物y), safe_point,
+                        search_center=(人物x, 人物y), search_radius=30,
+                        show_risk=True, scale=5, window="demo_case",
+                        outfile="viz_demo.png"
+                    )
+                    path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 1, 1, 2, 1)
+                    if path is not None:
+                        pause_all()
+                        mark_walk_stopped(打怪_stop_event, 血量_stop_event)  # 标记当前行走任务作废
+                        ret_path_list = self.沿路径控制人物行走_监控线程(path, False, False, 1, 1)
+                        resume_all()
 
 
             e = time.perf_counter()
@@ -189,7 +193,11 @@ class WorkerThread(QThread):
 
     def 更新地图_玩家点(self):
         frame = self.map_img.copy()
-        玩家坐标列表 = self.识别玩家坐标(*config.PLAYER_SCAN_RECT)
+        玩家坐标列表 = dm_utils.scan_players(
+                self.大漠对象,
+                监控控制.屏幕坐标转游戏坐标,
+                player_rect=config.OCR_PLAYER_POS_MAIN,
+            )
         if 玩家坐标列表:
             print("玩家坐标列表", 玩家坐标列表)
             frame = self.地图上绘制玩家点(frame, 玩家坐标列表)
@@ -377,29 +385,6 @@ class WorkerThread(QThread):
         except Exception as e:
             print(repr(e))
             traceback.print_exc()
-
-    def 识别玩家坐标(self,x1,y1,x2,y2):
-        try:
-            self.大漠对象.UseDict(2)
-            ret = self.大漠对象.FindStrEx(x1,y1,x2,y2, "D4|D5|D6|Z4|Z5|Z6|F4|F5|F6", 'ffffff-000000', 1)
-            # 7 83
-            if ret != "" :
-                ret1 = self.大漠对象.ExcludePos(ret, 0,*config.PLAYER_EXCLUDE_RECT)
-                if ret1 != '':
-                    人物坐标x, 人物坐标y = dm_utils.ocr_player_pos(self.大漠对象)
-                    玩家坐标列表 = []
-                    ret1_list = ret1.split('|')
-                    for i in ret1_list:
-                        i_list = i.split(',')
-                        玩家屏幕x = int(i_list[1]) + config.PLAYER_SCREEN_OFFSET_X
-                        玩家屏幕y = int(i_list[2]) + config.PLAYER_SCREEN_OFFSET_Y
-                        游戏坐标x,游戏坐标y = 监控控制.屏幕坐标转游戏坐标(人物坐标x,人物坐标y,玩家屏幕x,玩家屏幕y)
-                        玩家坐标列表.append((游戏坐标x,游戏坐标y))
-                    return 玩家坐标列表
-        except Exception as e:
-            print(repr(e))  # 输出异常的类型
-            traceback.print_exc()
-
 
     def 识别怪物坐标(self,x1,y1,x2,y2,path,sim):
         """
@@ -1264,35 +1249,15 @@ class MyWindow(QMainWindow):
 
     def 更新地图_玩家点(self):
         frame = self.map_img.copy()
-        玩家坐标列表 = self.识别玩家坐标(3, 2, 1918, 924)
+        玩家坐标列表 = dm_utils.scan_players(
+                dms_a[0],
+                监控控制.屏幕坐标转游戏坐标,
+                player_rect=config.OCR_PLAYER_POS_MAIN,
+            )
         if 玩家坐标列表:
             print("玩家坐标列表",玩家坐标列表)
             frame = self.地图上绘制玩家点(frame,玩家坐标列表)
         return frame,玩家坐标列表
-
-    def 识别玩家坐标(self,x1,y1,x2,y2):
-        try:
-            dms_a[0].UseDict(2)
-            ret = dms_a[0].FindStrEx(x1,y1,x2,y2, "D4|D5|D6|Z4|Z5|Z6|F4|F5|F6", 'ffffff-000000', 1)
-            # 7 83
-            if ret != "" :
-                ret1 = dms_a[0].ExcludePos(ret,0,*config.PLAYER_EXCLUDE_RECT)
-                print(ret1)
-                if ret1 != '':
-                    人物坐标x, 人物坐标y = dm_utils.ocr_player_pos(dms_a[0])
-                    玩家坐标列表 = []
-                    ret1_list = ret1.split('|')
-                    for i in ret1_list:
-                        i_list = i.split(',')
-                        玩家屏幕x = int(i_list[1]) + config.PLAYER_SCREEN_OFFSET_X
-                        玩家屏幕y = int(i_list[2]) + config.PLAYER_SCREEN_OFFSET_Y
-                        游戏坐标x,游戏坐标y = 监控控制.屏幕坐标转游戏坐标(人物坐标x,人物坐标y,玩家屏幕x,玩家屏幕y)
-                        玩家坐标列表.append((游戏坐标x,游戏坐标y))
-                    return 玩家坐标列表
-        except Exception as e:
-            print(repr(e))  # 输出异常的类型
-            traceback.print_exc()
-
 
     def _nearest_index_along_path(self,path, pos, start_index, max_lookahead=6):
         """
