@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # 大漠 OCR/识别通用工具，避免重复代码与解析错误。
 
+import re
 import config
 
 
@@ -17,15 +18,24 @@ def ocr_player_pos(dm, rect=None):
     text = dm.Ocr(x1, y1, x2, y2, "#255-50|#253-50", 1)
     if text == "":
         return -1, -1
-    try:
-        text = text.strip(":")
+    # 统一清理 OCR 文本，兼容中文冒号/空格等噪声
+    text = text.strip().replace("：", ":").replace(" ", "")
+    if ":" in text:
         parts = text.split(":")
-        if len(parts) != 2:
+        if len(parts) == 2:
+            try:
+                return int(parts[0]), int(parts[1])
+            except Exception:
+                pass
+    # 兜底：提取数字，避免格式异常导致坐标丢失
+    nums = re.findall(r"-?\d+", text)
+    if len(nums) >= 2:
+        try:
+            return int(nums[0]), int(nums[1])
+        except Exception:
+            # OCR 噪声或格式异常时不打断流程
             return -1, -1
-        return int(parts[0]), int(parts[1])
-    except Exception:
-        # OCR 噪声或格式异常时不打断流程
-        return -1, -1
+    return -1, -1
 
 
 def scan_players(dm, screen_to_game, player_pos=None, player_rect=None):
