@@ -12,6 +12,7 @@ import time
 import traceback
 from 新大漠插件 import *
 import ai算法
+import ai_visual
 from kmNet类封装2 import *
 from 常量 import changliang as cl
 import config
@@ -108,7 +109,7 @@ class WorkerThread(QThread):
                     人物x,人物y = self.识别人物当前坐标(*config.识别人物坐标区域)
                     safe_point = ai算法.next_move_a((人物x,人物y),frame,(人物x,人物y),40,1)
                     if safe_point is not None:
-                        ai算法.visualize_move(
+                        ai_visual.visualize_move(
                             frame, (人物x, 人物y), safe_point,
                             search_center=(人物x, 人物y), search_radius=30,
                             show_risk=True, scale=5, window="demo_case",
@@ -441,7 +442,7 @@ class WorkerThread(QThread):
     # ==============================
     def 打怪线程(self):
         try:
-            # ai算法.visualize_grid_and_path(self.map_img,path=None,win_name="map_img", cell_size=3)
+            # ai_visual.visualize_grid_and_path(self.map_img,path=None,win_name="map_img", cell_size=3)
             # cv2.waitKey(1)
             # cv2.moveWindow('map_img', 1926, 10)
             if self.map_img is None:
@@ -1243,7 +1244,7 @@ class MyWindow(QMainWindow):
             safe_point = ai算法.next_move_a((人物x, 人物y), frame, (人物x, 人物y), search_radius=25, selection_method=1,players=players,escape_mode='away')
             e2 = time.perf_counter()
             print("计算safe_point耗时:",e2-s2)
-            ai算法.visualize_move(
+            ai_visual.visualize_move(
                 frame, (人物x, 人物y), safe_point,
                 search_center=(人物x, 人物y), search_radius=25,
                 show_risk=True, scale=15, window="demo_case",
@@ -1258,10 +1259,10 @@ class MyWindow(QMainWindow):
 
                 print("a星寻路路径点",path)
                 if path is not None:
-                    ai算法.visualize_grid_and_path(frame, path=path, win_name="path", cell_size=15)
+                    ai_visual.visualize_grid_and_path(frame, path=path, win_name="path", cell_size=15)
                     ret_path_list = self.沿路径控制人物行走(path, False, False, 0, 0)
                     print("实际移动路径点",ret_path_list)
-                    ai算法.visualize_grid_and_path(frame, path=ret_path_list, win_name="ret_path_list", cell_size=15)
+                    ai_visual.visualize_grid_and_path(frame, path=ret_path_list, win_name="ret_path_list", cell_size=15)
 
         except Exception as e:
             print(repr(e))  # 输出异常的类型
