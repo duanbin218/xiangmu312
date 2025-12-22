@@ -139,12 +139,18 @@ class WorkerThread(QThread):
     def 识别血量(self):
         识别结果 = self.大漠对象.Ocr(*config.OCR_HP_RECT, "#255-50|#253-50", 1)
         if 识别结果 != '':
-            识别结果 = 识别结果.strip(":")
-            分割结果 = 识别结果.split('/')
-            当前血量 = int(分割结果[0])
-            最大血量 = int(分割结果[1])
-            # self.jiankong.emit(f"当前血量:{当前血量}|最大血量:{最大血量}")
-            return 当前血量,最大血量
+            try:
+                识别结果 = 识别结果.strip(":")
+                分割结果 = 识别结果.split('/')
+                if len(分割结果) != 2:
+                    return -1, -1
+                当前血量 = int(分割结果[0])
+                最大血量 = int(分割结果[1])
+                # self.jiankong.emit(f"当前血量:{当前血量}|最大血量:{最大血量}")
+                return 当前血量,最大血量
+            except Exception:
+                # OCR 噪声导致解析异常时返回无效值，避免线程异常中断
+                return -1, -1
         else:
             return -1,-1
 
@@ -213,13 +219,27 @@ class WorkerThread(QThread):
                 当前血量, 最大血量 = self.识别血量()
                 self.jiankong.emit(f"当前血量:{当前血量}|最大血量:{最大血量}")
 
-                if 0 < 当前血量/最大血量 < 0.95:
+                if 当前血量 == 0:
+                    self.jiankong.emit("人物已死亡,需要重新登录游戏")
+                    time.sleep(0.1)
+                    continue
+                if 当前血量 < 0 or 最大血量 <= 0:
+                    # OCR 失败或分母异常时跳过本轮，避免误判与除零
+                    time.sleep(0.1)
+                    continue
+
+                血量比例 = 当前血量 / 最大血量
+                if 0 < 血量比例 < 0.95:
                     pause_combat()  # 暂停打怪线程
                     mark_walk_stopped(打怪_stop_event)  # 暂停打怪线程同时做个标记,恢复打怪线程时通过这个标识重置打怪线程循环
                     s = time.perf_counter()
 
                     # 找安全坐标点
                     人物x,人物y = dm_utils.ocr_player_pos(self.大漠对象)
+                    if 人物x < 0 or 人物y < 0:
+                        # 坐标识别失败时不进行寻路，避免走到异常位置
+                        time.sleep(0.1)
+                        continue
                     z, x, y = self.大漠对象.AiFindPic(150,119,1719,867, r"./pic/guaiwu/宝宝.bmp", 0.60, 0)
                     # z, x, y = self.大漠对象.AiFindPic(543, 98, 1370, 714, r"./pic/guaiwu/单机_宝宝.bmp", 0.60, 0)
                     # 找到宝宝坐标,以宝宝坐标为中心找安全坐标点
@@ -227,20 +247,18 @@ class WorkerThread(QThread):
                     frame = self.更新地图_怪物点()
 
                     if z != -1:
-                        当前血量, 最大血量 = self.识别血量()
                         宝宝x,宝宝y = 血量控制.屏幕坐标转游戏坐标(人物x,人物y,x+14,y+34)
                         # 血量在75%以上时,安全点搜索半径为3,小范围选择安全坐标点
-                        if 0.75 < 当前血量/最大血量 < 0.95:
+                        if 0.75 < 血量比例 < 0.95:
                             bin_safe_point = ai算法.next_move_a((人物x,人物y),frame,(宝宝x,宝宝y),2,1)
                         # 血量在75%以下时,安全点搜索半径为全图,大范围选择安全坐标点
-                        elif 0 < 当前血量/最大血量 <= 0.75:
+                        elif 0 < 血量比例 <= 0.75:
                             bin_safe_point = ai算法.next_move_a((人物x, 人物y), frame, (宝宝x,宝宝y), None,1)
                     else:
                     # 未找到宝宝坐标,以人物坐标为中心找安全坐标点
-                        人物x,人物y = dm_utils.ocr_player_pos(self.大漠对象)
-                        if 0.75 < 当前血量/最大血量 < 0.95:
+                        if 0.75 < 血量比例 < 0.95:
                             bin_safe_point = ai算法.next_move_a((人物x,人物y),frame,(人物x, 人物y),5,1)
-                        elif 0 < 当前血量/最大血量 <= 0.75:
+                        elif 0 < 血量比例 <= 0.75:
                             bin_safe_point = ai算法.next_move_a((人物x, 人物y), frame, (人物x, 人物y), None,1)
                     cv2.waitKey(1)
 
@@ -264,10 +282,8 @@ class WorkerThread(QThread):
                             血量控制.键盘点击(60)
                             # 血量控制.随机延时(1400, 1600)
 
-                elif 0.95 <= 当前血量/最大血量 <= 1 and 当前血量 != -1:
+                elif 0.95 <= 血量比例 <= 1:
                     resume_combat()  # 继续打怪线程
-                elif 当前血量 == 0 :
-                    self.jiankong.emit("人物已死亡,需要重新登录游戏")
                 time.sleep(0.1)
 
         except Exception as e:
@@ -301,6 +317,9 @@ class WorkerThread(QThread):
 
             # 正版龙腾范围 48, 1057, 108, 1078  # 单机版龙腾范围 84,1061,128,1077
             人物x,人物y = dm_utils.ocr_player_pos(self.大漠对象)
+            if 人物x < 0 or 人物y < 0:
+                # OCR 坐标无效时直接返回，避免坐标换算错误
+                return set()
             img = cv2.imread(img_path)
             if img is None:
                 raise RuntimeError(f"读图失败: {img_path}")
@@ -392,6 +411,9 @@ class WorkerThread(QThread):
         """
         img_path = path
         人物坐标x, 人物坐标y = dm_utils.ocr_player_pos(self.大漠对象)
+        if 人物坐标x < 0 or 人物坐标y < 0:
+            # OCR 坐标无效时跳过找图，避免无意义的坐标转换
+            return []
         返回_找图AIEx = self.大漠对象.AiFindPicEx(x1,y1,x2,y2, fr"./{img_path}", sim, 0)
         if 返回_找图AIEx != '':
             返回_找图AIEx_list = 返回_找图AIEx.split('|')
