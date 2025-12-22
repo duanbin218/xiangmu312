@@ -96,19 +96,20 @@ class WorkerThread(QThread):
             self.监控线程()
 
     def 监控线程(self):
-        self.大漠对象.UseDict(2)
         while True:
 
             s = time.perf_counter()
             # 全地图循环扫描玩家,如果有玩家,就执行后面的操作躲避玩家,否则就继续循环
+            player_pos = dm_utils.ocr_player_pos(self.大漠对象)
             players = dm_utils.scan_player(
                 self.大漠对象,
                 监控控制.屏幕坐标转游戏坐标,
+                player_pos=player_pos,
             )
             if players:
                 frame = self.map_img.copy()
                 frame = self.地图上绘制玩家点(frame, players)
-                人物x,人物y = dm_utils.ocr_player_pos(self.大漠对象)
+                人物x,人物y = player_pos
                 safe_point = ai算法.next_move_a((人物x,人物y),frame,(人物x,人物y),40,1)
                 if safe_point is not None:
                     ai_visual.visualize_move(
