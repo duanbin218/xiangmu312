@@ -293,7 +293,7 @@ class WorkerThread(QThread):
             # max_red2 = np.array([10, 255, 255])
             # mix_red2 = np.array([0, 225, 150])
 
-            img_path = "temp_img.bmp"
+            img_path = config.TEMP_CAPTURE_BMP
             self.大漠对象.Capture(x1,y1,x2,y2, img_path)
             self.大漠对象.UseDict(0)
 
@@ -332,16 +332,16 @@ class WorkerThread(QThread):
             # if count_254 > 0:
             #     print(f"✅ 警告：mask 图像中存在 {count_254} 个像素值为 254。")
 
-            mask_path = "mask_rgb.bmp"
+            mask_path = config.ITEM_MASK_BMP
 
             mask_rgb = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
             self.xianshi.emit(mask_rgb)
             # cv2.imshow("mask_rgb", mask_rgb)
             # cv2.waitKey(1)
-            cv2.imwrite("mask_rgb.bmp", mask_rgb)
+            cv2.imwrite(mask_path, mask_rgb)
 
-            dm_ret = self.大漠对象.FreePic("mask_rgb.bmp")
-            dm_ret = self.大漠对象.SetDisplayInput("pic:mask_rgb.bmp")
+            dm_ret = self.大漠对象.FreePic(mask_path)
+            dm_ret = self.大漠对象.SetDisplayInput(f"pic:{mask_path}")
 
             self.大漠对象.UseDict(1)
 
