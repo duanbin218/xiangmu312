@@ -3,8 +3,6 @@
 import re
 import config
 
-OCR_NUMBER_COLOR = "#255-50|#253-50"  # 统一数字类 OCR 颜色阈值，避免多处硬编码漂移
-
 
 # region 按指定分隔符分隔字符串中的两个整数
 def _parse_int_pair(text, sep):
@@ -46,7 +44,7 @@ def _ocr_int_pair(dm,rect,sep):
     :param sep: 分隔符
     :return:
     """
-    text = dm.Ocr(*rect, OCR_NUMBER_COLOR, 1)
+    text = dm.Ocr(*rect, config.OCR_NUMBER_COLOR, 1)
     if text == "":
         return (-1, -1)
     return _parse_int_pair(text,sep)
