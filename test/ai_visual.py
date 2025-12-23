@@ -7,6 +7,31 @@ import cv2
 import ai算法 as core  # 可视化依赖核心算法，但不反向依赖，避免循环引用。
 
 
+def _make_grid_vis(grid: np.ndarray, cell_size: int, line_color=(200, 200, 200)):
+    """
+    生成放大后的网格底图，并统一绘制网格线。
+    """
+    if grid.dtype != np.uint8 or grid.ndim != 3 or grid.shape[2] != 3:
+        raise ValueError("grid 必须是 HxWx3 的 uint8 BGR")
+
+    h, w, _ = grid.shape
+
+    # 用最近邻插值放大，避免颜色被模糊
+    vis = cv2.resize(
+        grid, (w * cell_size, h * cell_size),
+        interpolation=cv2.INTER_NEAREST
+    )
+
+    # 画淡灰色网格线
+    for x in range(w + 1):
+        px = x * cell_size
+        cv2.line(vis, (px, 0), (px, h * cell_size), line_color, 1)
+    for y in range(h + 1):
+        py = y * cell_size
+        cv2.line(vis, (0, py), (w * cell_size, py), line_color, 1)
+    return vis, h, w
+
+
 # =====================  可视化放大图像显示路径点  =====================
 def visualize_grid_and_path(
     grid: np.ndarray,
@@ -21,25 +46,7 @@ def visualize_grid_and_path(
     path: [(x,y), ...]，a_star_eight 的返回结果
     cell_size: 每个格子放大成多少像素
     """
-    if grid.dtype != np.uint8 or grid.ndim != 3 or grid.shape[2] != 3:
-        raise ValueError("grid 必须是 HxWx3 的 uint8 BGR")
-
-    h, w, _ = grid.shape
-
-    # 用最近邻插值放大，避免颜色被模糊
-    vis = cv2.resize(
-        grid, (w * cell_size, h * cell_size),
-        interpolation=cv2.INTER_NEAREST
-    )
-
-    # 画淡灰色网格线
-    line_color = (200, 200, 200)
-    for x in range(w + 1):
-        px = x * cell_size
-        cv2.line(vis, (px, 0), (px, h * cell_size), line_color, 1)
-    for y in range(h + 1):
-        py = y * cell_size
-        cv2.line(vis, (0, py), (w * cell_size, py), line_color, 1)
+    vis, h, w = _make_grid_vis(grid, cell_size)
 
     if path:
         # 画路径：红色线 + 点，起点绿，终点蓝
@@ -74,25 +81,7 @@ def visualize_grid_and_point(
     win_name: str = "A* path",
     cell_size: int = 30,
 ):
-    if grid.dtype != np.uint8 or grid.ndim != 3 or grid.shape[2] != 3:
-        raise ValueError("grid 必须是 HxWx3 的 uint8 BGR")
-
-    h, w, _ = grid.shape
-
-    # 用最近邻插值放大，避免颜色被模糊
-    vis = cv2.resize(
-        grid, (w * cell_size, h * cell_size),
-        interpolation=cv2.INTER_NEAREST
-    )
-
-    # 画淡灰色网格线
-    line_color = (200, 200, 200)
-    for x in range(w + 1):
-        px = x * cell_size
-        cv2.line(vis, (px, 0), (px, h * cell_size), line_color, 1)
-    for y in range(h + 1):
-        py = y * cell_size
-        cv2.line(vis, (0, py), (w * cell_size, py), line_color, 1)
+    vis, h, w = _make_grid_vis(grid, cell_size)
 
     if point is not None:
         point_color = (0, 0, 255)  # 红
