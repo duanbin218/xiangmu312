@@ -9,7 +9,7 @@ import ctypes
 import math
 import config  # 集中配置，避免漂移。
 
-# Map/coordinate settings are now sourced from config to avoid drift.
+# 地图/坐标相关设置已统一从 config 读取，避免漂移。
 
 # 方位移动的随机范围，区分走路/跑步，避免多处硬编码。
 WALK_R90_MIN = (-4, 4)
@@ -176,7 +176,8 @@ class 游戏控制器:
         """
         统一相对移动入口，便于后续调整移动策略。
         """
-        self.kmNet.enc_move_auto(int(dx), int(dy), 2000)
+        # 移动时长统一从配置读取，便于整体节奏调优
+        self.kmNet.enc_move_auto(int(dx), int(dy), config.MOUSE_MOVE_DURATION_MS)
 
     def move_without_click(
         self,

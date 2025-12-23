@@ -848,6 +848,22 @@ def a_star_eight(
     """
     grid = img_path
 
+    def _run_full_a_star(reason: Optional[str] = None):
+        """
+        统一整图 A* 入口，避免多处重复参数与日志拼接。
+        """
+        if reason:
+            print(reason)
+        return _a_star_eight_core(
+            start_x, start_y, end_x, end_y,
+            grid,
+            foot_len,
+            endpoint_deviation,
+            safety_radius,
+            safety_weight,
+            close_penalty_distance,
+        )
+
     if not isinstance(grid, np.ndarray) or grid.ndim != 3 or grid.shape[2] != 3 or grid.dtype != np.uint8:
         raise ValueError("img_path 必须是 HxWx3 的 uint8 BGR 图像")
 
@@ -898,16 +914,7 @@ def a_star_eight(
 
     # 如果 patch 还太大，就直接回退全图
     if subW > max_patch_size or subH > max_patch_size:
-        print(f"a_star_eight: 局部 patch 太大({subW}x{subH}), 回退整图 A*")
-        return _a_star_eight_core(
-            start_x, start_y, end_x, end_y,
-            grid,
-            foot_len,
-            endpoint_deviation,
-            safety_radius,
-            safety_weight,
-            close_penalty_distance,
-        )
+        return _run_full_a_star(f"a_star_eight: 局部 patch 太大({subW}x{subH}), 回退整图 A*")
 
     # ======= 截取局部 sub_grid，映射坐标到局部坐标系 =======
     sub_grid = grid[py0:py1 + 1, px0:px1 + 1]
@@ -919,28 +926,10 @@ def a_star_eight(
 
     # 安全检查：防止由于整数截断导致坐标跑出 sub_grid
     if not (0 <= sx_local < subW and 0 <= sy_local < subH):
-        print("警告: sx_local/sy_local 越界, 回退整图 A*")
-        return _a_star_eight_core(
-            start_x, start_y, end_x, end_y,
-            grid,
-            foot_len,
-            endpoint_deviation,
-            safety_radius,
-            safety_weight,
-            close_penalty_distance,
-        )
+        return _run_full_a_star("警告: sx_local/sy_local 越界, 回退整图 A*")
 
     if not (0 <= ex_local < subW and 0 <= ey_local < subH):
-        print("警告: ex_local/ey_local 越界, 回退整图 A*")
-        return _a_star_eight_core(
-            start_x, start_y, end_x, end_y,
-            grid,
-            foot_len,
-            endpoint_deviation,
-            safety_radius,
-            safety_weight,
-            close_penalty_distance,
-        )
+        return _run_full_a_star("警告: ex_local/ey_local 越界, 回退整图 A*")
 
     # ======= 在局部 patch 上跑 A* =======
     path_local = _a_star_eight_core(
@@ -1008,5 +997,4 @@ def check_the_connection(start, next_point, next_next_point):
     return d1 != (0, 0) and d1 == d2
 
 # 可视化函数已移动到 ai_visual.py，核心算法不再依赖 OpenCV。
-
 
