@@ -30,21 +30,27 @@ def _parse_int_pair(text, sep):
     return -1, -1
 
 
+def _ocr_int_pair(dm, rect, sep):
+    """
+    统一 OCR + 解析入口，避免多处重复处理。
+    """
+    text = dm.Ocr(*rect, OCR_NUMBER_COLOR, 1)
+    if text == "":
+        return -1, -1
+    return _parse_int_pair(text, sep)
+
+
 def ocr_player_pos(dm, rect=None):
     """
     通用人物坐标 OCR。
     - 统一字库与坐标入口，减少多处硬编码漂移
     - 解析失败时返回 (-1, -1)，避免抛异常影响主循环
     """
+
     if rect is None:
         rect = config.OCR_PLAYER_POS_MAIN
-    x1, y1, x2, y2 = rect
     dm.UseDict(0)
-    text = dm.Ocr(x1, y1, x2, y2, OCR_NUMBER_COLOR, 1)
-    if text == "":
-        return -1, -1
-    # 统一解析入口，降低 OCR 噪声造成的坐标丢失
-    return _parse_int_pair(text, ":")
+    return _ocr_int_pair(dm, rect, ":")
 
 
 def ocr_hp(dm, rect=None):
@@ -56,10 +62,7 @@ def ocr_hp(dm, rect=None):
     if rect is None:
         rect = config.OCR_HP_RECT
     dm.UseDict(0)
-    text = dm.Ocr(*rect, OCR_NUMBER_COLOR, 1)
-    if text == "":
-        return -1, -1
-    return _parse_int_pair(text, "/")
+    return _ocr_int_pair(dm, rect, "/")
 
 
 def scan_players(dm, screen_to_game, player_pos=None, player_rect=None):

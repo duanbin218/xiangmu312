@@ -44,8 +44,6 @@ WINDOW_MOVE_Y = -26
 
 # OCR/识别坐标集中管理，避免多处硬编码导致漂移。
 OCR_PLAYER_POS_MAIN = (48, 1057, 108, 1078)
-OCR_PLAYER_POS_ALT = (60, 1061, 109, 1075)
-OCR_PLAYER_POS_PATH = (49, 1061, 105, 1075)
 OCR_HP_RECT = (21, 1042, 81, 1055)
 
 # 玩家识别区域与坐标偏移配置。

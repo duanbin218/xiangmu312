@@ -101,8 +101,8 @@ class WorkerThread(QThread):
         while True:
 
             s = time.perf_counter()
-            # 使用统一的玩家扫描逻辑，避免重复 FindStrEx/ExcludePos
-            player_pos = dm_utils.ocr_player_pos(self.大漠对象, config.OCR_PLAYER_POS_MAIN)
+            # 使用统一的玩家扫描逻辑，允许备用 OCR 矩形回退
+            player_pos = dm_utils.ocr_player_pos(self.大漠对象)
             players = dm_utils.scan_players(
                 self.大漠对象,
                 监控控制.屏幕坐标转游戏坐标,
@@ -180,10 +180,10 @@ class WorkerThread(QThread):
 
     def 更新地图_玩家点(self):
         frame = self.map_img.copy()
+        # 使用默认 OCR 坐标入口，包含备用矩形回退
         玩家坐标列表 = dm_utils.scan_players(
                 self.大漠对象,
                 监控控制.屏幕坐标转游戏坐标,
-                player_rect=config.OCR_PLAYER_POS_MAIN,
             )
         if 玩家坐标列表:
             print("玩家坐标列表", 玩家坐标列表)
@@ -664,7 +664,8 @@ class WorkerThread(QThread):
             for i in range(30):
                 # 走到可以接镖车的位置
                 while True:
-                    人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象, config.OCR_PLAYER_POS_MAIN)
+                    # 使用默认坐标 OCR，失败时可回退备用矩形
+                    人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
                     if 人物x != -1:
                         目标方位 = 打怪控制.判断方位(352, 348, 人物x, 人物y)
                         if abs(352 - 人物x) == 1 or abs(348 - 人物y) == 1:
@@ -704,7 +705,8 @@ class WorkerThread(QThread):
                     打怪控制.随机延时(50, 100)
                 # 接到镖车走到交镖车位置
                 while True:
-                    人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象, config.OCR_PLAYER_POS_MAIN)
+                    # 使用默认坐标 OCR，失败时可回退备用矩形
+                    人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
                     if 人物x != -1:
                         目标方位 = 打怪控制.判断方位(382, 341, 人物x, 人物y)
                         if abs(382 - 人物x) == 1 or abs(341 - 人物y) == 1:
@@ -1252,10 +1254,10 @@ class MyWindow(QMainWindow):
 
     def 更新地图_玩家点(self):
         frame = self.map_img.copy()
+        # 使用默认 OCR 坐标入口，包含备用矩形回退
         玩家坐标列表 = dm_utils.scan_players(
                 dms_a[0],
                 监控控制.屏幕坐标转游戏坐标,
-                player_rect=config.OCR_PLAYER_POS_MAIN,
             )
         if 玩家坐标列表:
             print("玩家坐标列表",玩家坐标列表)
