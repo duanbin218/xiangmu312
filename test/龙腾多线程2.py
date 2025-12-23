@@ -31,25 +31,49 @@ init_runtime()
 with open(config.MONSTER_LIST_PATH, 'r', encoding='UTF-8') as f:
     怪物图片路径 = f.read()
     怪物图片路径 = 怪物图片路径.replace('\n','|')
-    target = "pic/guaiwu/宝宝.bmp|"
+    # 与配置保持一致，且兼容列表中不带 "./" 的写法
+    pet_path = config.PET_PIC_PATH[2:] if config.PET_PIC_PATH.startswith("./") else config.PET_PIC_PATH
+    target = f"{pet_path}|"
     # target = "|pic/guaiwu/单机_宝宝.bmp"
     怪物图片路径_不包括宝宝 = 怪物图片路径.replace(target, "")
     怪物路径列表 = 怪物图片路径.split('|')
-    print(怪物图片路径)
-    print(怪物路径列表)
-    print(怪物图片路径_不包括宝宝)
+    if config.DEBUG_LOG:
+        print(怪物图片路径)
+        print(怪物路径列表)
+        print(怪物图片路径_不包括宝宝)
 
 with open(config.ITEM_NAME_PATH,'r',encoding='ANSI') as f:
     物品名称路径 = f.read()
     物品名称路径 = 物品名称路径.replace('\n','|')+config.ITEM_NAME_EXTRA
     物品名称列表 = 物品名称路径.split('|')
-    print(物品名称路径)
+    if config.DEBUG_LOG:
+        print(物品名称路径)
 
 def 设置字库(大漠对象):
     """集中设置字库，避免多个地方写错路径导致 OCR 不一致。"""
     大漠对象.SetDict(0, config.DICT_NUM_PATH)
     大漠对象.SetDict(1, config.DICT_SYS_PATH)
     大漠对象.SetDict(2, config.DICT_PLAYER_PATH)
+
+def _入场检查(dm_obj, path, max_start_dist=5):
+    """抽出入场检查，避免不同寻路函数出现判定差异。"""
+    if not path:
+        return None
+
+    cur = dm_utils.ocr_player_pos(dm_obj)
+    if not cur or cur[0] < 0 or cur[1] < 0:
+        print("警告: 入场时无法识别人 物坐标，放弃本次行走")
+        return None
+
+    人物x0, 人物y0 = cur
+    start_dist = max(abs(人物x0 - path[0][0]), abs(人物y0 - path[0][1]))
+    print(f"入场检查: path[0]={path[0]}, 人物起始=({人物x0},{人物y0}), dist={start_dist}")
+
+    if start_dist > max_start_dist:  # 阈值你自己调，比如 >3 或 >8
+        print("警告: 人物与路径起点偏差太大，视为无效路径，退出，让上层重新算")
+        return None
+
+    return (人物x0, 人物y0)
 
 
 # 记录捡取物品的坐标,防止物品是其他人的,不能拾取,人物来回往该物品地址寻路
@@ -160,7 +184,7 @@ class WorkerThread(QThread):
 
     def 更新地图_怪物点(self):
         frame = self.map_img.copy()
-        怪物列表_包括宝宝 = self.识别怪物坐标(543, 98, 1370, 714, 怪物图片路径, 0.82)
+        怪物列表_包括宝宝 = self.识别怪物坐标(543, 98, 1370, 714, 怪物图片路径, config.MONSTER_LIST_SIM)
         if 怪物列表_包括宝宝:
             frame = self.地图上绘制怪物点(frame, 怪物列表_包括宝宝)
         return frame
@@ -215,7 +239,7 @@ class WorkerThread(QThread):
                         # 坐标识别失败时不进行寻路，避免走到异常位置
                         time.sleep(0.1)
                         continue
-                    z, x, y = self.大漠对象.AiFindPic(150,119,1719,867, config.PET_PIC_PATH, 0.60, 0)
+                    z, x, y = self.大漠对象.AiFindPic(150,119,1719,867, config.PET_PIC_PATH, config.PET_PIC_SIM, 0)
                     # z, x, y = self.大漠对象.AiFindPic(543, 98, 1370, 714, r"./pic/guaiwu/单机_宝宝.bmp", 0.60, 0)
                     # 找到宝宝坐标,以宝宝坐标为中心找安全坐标点
 
@@ -376,7 +400,8 @@ class WorkerThread(QThread):
 
             ee = time.perf_counter()
             t = ee - s
-            print('找物品用时:',t)
+            if config.DEBUG_LOG:
+                print('找物品用时:', t)
             return 物品游戏坐标列表
         except Exception as e:
             print(repr(e))
@@ -420,7 +445,8 @@ class WorkerThread(QThread):
             # cv2.waitKey(1)
             # cv2.moveWindow('map_img', 1926, 10)
             if self.map_img is None:
-                print(f"未找到 {config.MAP_IMAGE_PATH}")
+                if config.DEBUG_LOG:
+                    print(f"未找到 {config.MAP_IMAGE_PATH}")
                 return
             global bad_cells
             global last_clear_time
@@ -430,33 +456,38 @@ class WorkerThread(QThread):
                 # 每隔CLEAR_INTERVAL时间,清空wupin_list记录已捡物品的集合
                 now = time.time()
                 if now - last_clear_time >= CLEAR_INTERVAL:
-                    print("清空wupin_list之前",wupin_list)
+                    if config.DEBUG_LOG:
+                        print("清空wupin_list之前", wupin_list)
                     wupin_list.clear()
-                    print("定时清空 wupin_list",wupin_list)
+                    if config.DEBUG_LOG:
+                        print("定时清空 wupin_list", wupin_list)
                     last_clear_time = now
 
                 if 打怪_stop_event.is_set():      # "打怪_stop_event"为True,表示其他线程暂停过又恢复了打怪线程,那么检查宝宝是否打怪和检查周围是否有物品
                     打怪_stop_event.clear()
                     self.fighting(150,119,1719,867)
                     物品游戏坐标列表 = self.捡物(561, 113, 1429, 730)
-                    print("血量监测后,宝宝打死怪后物品列表:", 物品游戏坐标列表)
+                    if config.DEBUG_LOG:
+                        print("血量监测后,宝宝打死怪后物品列表:", 物品游戏坐标列表)
                     if 物品游戏坐标列表:
                         for 物品 in 物品游戏坐标列表:
                             if 物品 not in wupin_list:
-                                print("血量监测后,宝宝打死怪后捡取物品", 物品[0])
+                                if config.DEBUG_LOG:
+                                    print("血量监测后,宝宝打死怪后捡取物品", 物品[0])
                                 物品坐标x = 物品[1][0]
                                 物品坐标y = 物品[1][1]
                                 人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
                                 frame = self.更新地图_怪物点()
                                 path = ai算法.a_star_eight(人物x, 人物y, 物品坐标x, 物品坐标y, frame, 1, 0, 1, 1, 1)
-                                print('血量监测后,宝宝打死怪后捡物品寻路路径:', path)
+                                if config.DEBUG_LOG:
+                                    print('血量监测后,宝宝打死怪后捡物品寻路路径:', path)
                                 self.沿路径控制人物行走_打怪线程(path, False, False, 0, 1)
                                 wupin_list.add(物品)
 
                 frame = self.map_img.copy()
                 人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
 
-                怪物列表_包括宝宝 = self.识别怪物坐标(5, 28, 1916, 823,怪物图片路径,0.82)
+                怪物列表_包括宝宝 = self.识别怪物坐标(5, 28, 1916, 823,怪物图片路径,config.MONSTER_LIST_SIM)
                 怪物列表_不包括宝宝 = [item for item in 怪物列表_包括宝宝 if '宝宝' not in item[0]]
 
                 # 全局集合 bad_cells 记录了寻路过程中不能到达的怪物游戏坐标,找最近怪时先筛除掉这些不能到达的怪(不在这些怪中找最近怪)
@@ -474,11 +505,13 @@ class WorkerThread(QThread):
                     # print('bad_cells',bad_cells)
                     name ,最近x, 最近y = 最近怪物
 
-                    print('最近怪:',name,最近x,最近y)
+                    if config.DEBUG_LOG:
+                        print('最近怪:', name, 最近x, 最近y)
 
                     # A星寻路算法算出路线path
                     path = ai算法.a_star_eight(人物x, 人物y, 最近x, 最近y,frame,1,1,1,1,1)
-                    print('寻路路径',path)
+                    if config.DEBUG_LOG:
+                        print('寻路路径', path)
 
                     # 沿着寻路路径开始寻路
                     ret_path_list = self.沿路径控制人物行走_打怪线程(path,True,False,1,0)
@@ -489,11 +522,13 @@ class WorkerThread(QThread):
                     打怪控制.随机延时(1200, 1300)
                     # 宝宝在人物一边,怪物在人物另一边,宝宝和怪物被人物隔开了,比如人物要进门打怪,但是人物卡在了门口
                     if self.宝宝在身边未攻击次数 > 5:
-                        print('人物卡在门口,把宝宝和怪物分开了,宝宝不能打怪')
+                        if config.DEBUG_LOG:
+                            print('人物卡在门口,把宝宝和怪物分开了,宝宝不能打怪')
                         人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
                         frame = self.更新地图_怪物点()
                         safe_point = ai算法.next_move_a((人物x, 人物y), frame, (人物x, 人物y), None, 1)
-                        print('宝宝在身边未攻击次数大于5后安全点坐标',safe_point)
+                        if config.DEBUG_LOG:
+                            print('宝宝在身边未攻击次数大于5后安全点坐标', safe_point)
                         if 'safe_point' not in locals():
                             raise ValueError("宝宝在身边未攻击次数")
                         path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 1, 1, 1, 1)
@@ -503,26 +538,31 @@ class WorkerThread(QThread):
                     self.召唤宝宝()
 
                     物品游戏坐标列表 = self.捡物(248,88,1607,864)
-                    print("召唤宝宝后物品列表:",物品游戏坐标列表)
+                    if config.DEBUG_LOG:
+                        print("召唤宝宝后物品列表:", 物品游戏坐标列表)
                     if 物品游戏坐标列表:
                         for 物品 in 物品游戏坐标列表:
-                            print("召唤宝宝后捡取物品",物品[0])
+                            if config.DEBUG_LOG:
+                                print("召唤宝宝后捡取物品", 物品[0])
                             if 物品 not in wupin_list:
                                 物品坐标x = 物品[1][0]
                                 物品坐标y = 物品[1][1]
                                 人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
                                 frame = self.更新地图_怪物点()
                                 path = ai算法.a_star_eight(人物x, 人物y, 物品坐标x, 物品坐标y, frame, 1, 0, 1, 1, 1)
-                                print('召唤宝宝后捡物品寻路路径:',path)
+                                if config.DEBUG_LOG:
+                                    print('召唤宝宝后捡物品寻路路径:', path)
                                 self.沿路径控制人物行走_打怪线程(path, False, False, 0, 1)
                                 wupin_list.add(物品)
 
-                    print('马上进入宝宝打怪中')
+                    if config.DEBUG_LOG:
+                        print('马上进入宝宝打怪中')
                     self.fighting(627, 106, 1300, 712)
 
                     # 打死怪后判断周围有没有装备
                     物品游戏坐标列表 = self.捡物(561, 113, 1429, 730)
-                    print("宝宝打死怪后物品列表:", 物品游戏坐标列表)
+                    if config.DEBUG_LOG:
+                        print("宝宝打死怪后物品列表:", 物品游戏坐标列表)
                     if 物品游戏坐标列表:
                         for 物品 in 物品游戏坐标列表:
                             if 物品 not in wupin_list:
@@ -565,7 +605,7 @@ class WorkerThread(QThread):
             宝宝 = list()
             宝宝攻击范围 = [None, None, None, None]  # 0,1是左上角坐标.2,3是右下角坐标
 
-            返回_找图AIEx = self.大漠对象.AiFindPicEx(x1,y1,x2,y2, config.PET_PIC_PATH, 0.6, 0)
+            返回_找图AIEx = self.大漠对象.AiFindPicEx(x1,y1,x2,y2, config.PET_PIC_PATH, config.PET_PIC_SIM, 0)
             # 返回_找图AIEx = self.大漠对象.AiFindPicEx(627, 106, 1300, 712, r"./pic/guaiwu/单机_宝宝.bmp", 0.6, 0)
             # print("宝宝数量:",返回_找图AIEx)
             if 返回_找图AIEx != "":
@@ -592,9 +632,9 @@ class WorkerThread(QThread):
                 宝宝攻击范围1 = [宝宝列表[0][1] - 70, 宝宝列表[0][2] - 39, 宝宝列表[0][1] + 121, 宝宝列表[0][2] + 58]
                 宝宝攻击范围2 = [宝宝列表[1][1] - 70, 宝宝列表[1][2] - 39, 宝宝列表[1][1] + 121, 宝宝列表[1][2] + 58]
                 返回_找图AIEx1 = self.大漠对象.AiFindPicEx(宝宝攻击范围1[0], 宝宝攻击范围1[1], 宝宝攻击范围1[2],
-                                                          宝宝攻击范围1[3], fr"./{怪物图片路径_不包括宝宝}", 0.85, 0)
+                                                          宝宝攻击范围1[3], fr"./{怪物图片路径_不包括宝宝}", config.MONSTER_PIC_SIM, 0)
                 返回_找图AIEx2 = self.大漠对象.AiFindPicEx(宝宝攻击范围2[0], 宝宝攻击范围2[1], 宝宝攻击范围2[2],
-                                                          宝宝攻击范围2[3], fr"./{怪物图片路径_不包括宝宝}", 0.85, 0)
+                                                          宝宝攻击范围2[3], fr"./{怪物图片路径_不包括宝宝}", config.MONSTER_PIC_SIM, 0)
                 if 返回_找图AIEx1 != '' or 返回_找图AIEx2 != '' :
                     宝宝周围未找到怪物计次 = 0
                     self.宝宝在身边未攻击次数 = 0
@@ -611,7 +651,7 @@ class WorkerThread(QThread):
                 宝宝攻击范围 = [宝宝[1] - 70, 宝宝[2] - 39, 宝宝[1] + 121, 宝宝[2] + 58]
 
                 返回_找图AIEx = self.大漠对象.AiFindPicEx(宝宝攻击范围[0], 宝宝攻击范围[1], 宝宝攻击范围[2],
-                                                   宝宝攻击范围[3], fr"./{怪物图片路径_不包括宝宝}", 0.85, 0)
+                                                   宝宝攻击范围[3], fr"./{怪物图片路径_不包括宝宝}", config.MONSTER_PIC_SIM, 0)
                 if 返回_找图AIEx != '':
                     宝宝周围未找到怪物计次 = 0
                     self.宝宝在身边未攻击次数 = 0
@@ -624,7 +664,7 @@ class WorkerThread(QThread):
                         print("怪物已死亡")
                         break
 
-            返回_找图AIEx = self.大漠对象.AiFindPicEx(x1,y1,x2,y2, fr"./{怪物图片路径_不包括宝宝}", 0.85, 0)
+            返回_找图AIEx = self.大漠对象.AiFindPicEx(x1,y1,x2,y2, fr"./{怪物图片路径_不包括宝宝}", config.MONSTER_PIC_SIM, 0)
             if 返回_找图AIEx == "":
                 print('小范围周围没怪,继续找最近怪')
                 break
@@ -635,7 +675,7 @@ class WorkerThread(QThread):
     def 召唤宝宝(self):
         print('召唤宝宝')
         for i in range(3):
-            返回_找图AIEx = self.大漠对象.AiFindPicEx(842,358, 1082,519, config.PET_PIC_PATH, 0.6, 0)
+            返回_找图AIEx = self.大漠对象.AiFindPicEx(842,358, 1082,519, config.PET_PIC_PATH, config.PET_PIC_SIM, 0)
             # 返回_找图AIEx = self.大漠对象.AiFindPicEx(842,358, 1082,519, r"./pic/guaiwu/单机_宝宝.bmp", 0.6, 0)
             if 返回_找图AIEx == '':
                 打怪控制.键盘点击(65)
@@ -794,17 +834,7 @@ class WorkerThread(QThread):
             return
 
         # ===== 入场检查：人物是否在路径起点附近 =====
-        cur = dm_utils.ocr_player_pos(self.大漠对象)
-        if not cur or cur[0] < 0 or cur[1] < 0:
-            print("警告: 入场时无法识别人 物坐标，放弃本次行走")
-            return
-
-        人物x0, 人物y0 = cur
-        start_dist = max(abs(人物x0 - path[0][0]), abs(人物y0 - path[0][1]))
-        print(f"入场检查: path[0]={path[0]}, 人物起始=({人物x0},{人物y0}), dist={start_dist}")
-
-        if start_dist > 5:  # 阈值你自己调，比如 >3 或 >8
-            print("警告: 人物与路径起点偏差太大，视为无效路径，退出，让上层重新算")
+        if _入场检查(self.大漠对象, path) is None:
             return
 
         if a_star_kwargs is None:
@@ -848,13 +878,13 @@ class WorkerThread(QThread):
                     return road_list
 
                 if small_area == True:
-                    z, x, y = self.大漠对象.AiFindPic(843, 359, 1084, 513, 怪物图片路径_不包括宝宝, 0.85, 0)
+                    z, x, y = self.大漠对象.AiFindPic(843, 359, 1084, 513, 怪物图片路径_不包括宝宝, config.MONSTER_PIC_SIM, 0)
                     if z != -1:
                         bad_cells.clear()
                         print('小范围检测到怪,停止寻路,清空bad_cells:', bad_cells)
                         return road_list
                 if big_area == True :
-                    z, x, y = self.大漠对象.AiFindPic(5, 28, 1916, 823, 怪物图片路径_不包括宝宝, 0.85, 0)
+                    z, x, y = self.大漠对象.AiFindPic(5, 28, 1916, 823, 怪物图片路径_不包括宝宝, config.MONSTER_PIC_SIM, 0)
                     if z != -1:
                         bad_cells.clear()
                         print('大范围检测到怪,停止寻路,清空bad_cells:', bad_cells)
@@ -1310,17 +1340,7 @@ class MyWindow(QMainWindow):
             return
 
         # ===== 入场检查：人物是否在路径起点附近 =====
-        cur = dm_utils.ocr_player_pos(dms_a[0])
-        if not cur or cur[0] < 0 or cur[1] < 0:
-            print("警告: 入场时无法识别人 物坐标，放弃本次行走")
-            return
-
-        人物x0, 人物y0 = cur
-        start_dist = max(abs(人物x0 - path[0][0]), abs(人物y0 - path[0][1]))
-        print(f"入场检查: path[0]={path[0]}, 人物起始=({人物x0},{人物y0}), dist={start_dist}")
-
-        if start_dist > 5:  # 阈值你自己调，比如 >3 或 >8
-            print("警告: 人物与路径起点偏差太大，视为无效路径，退出，让上层重新算")
+        if _入场检查(dms_a[0], path) is None:
             return
 
         if a_star_kwargs is None:
@@ -1364,13 +1384,13 @@ class MyWindow(QMainWindow):
                     return road_list
 
                 if small_area == True:
-                    z, x, y = dms_a[0].AiFindPic(843, 359, 1084, 513, 怪物图片路径_不包括宝宝, 0.85, 0)
+                    z, x, y = dms_a[0].AiFindPic(843, 359, 1084, 513, 怪物图片路径_不包括宝宝, config.MONSTER_PIC_SIM, 0)
                     if z != -1:
                         bad_cells.clear()
                         print('小范围检测到怪,停止寻路,清空bad_cells:', bad_cells)
                         return road_list
                 if big_area == True :
-                    z, x, y = dms_a[0].AiFindPic(5, 28, 1916, 823, 怪物图片路径_不包括宝宝, 0.85, 0)
+                    z, x, y = dms_a[0].AiFindPic(5, 28, 1916, 823, 怪物图片路径_不包括宝宝, config.MONSTER_PIC_SIM, 0)
                     if z != -1:
                         bad_cells.clear()
                         print('大范围检测到怪,停止寻路,清空bad_cells:', bad_cells)

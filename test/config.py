@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Centralized resource/config values to avoid drift across threads.
-from xiangmu312_codex.test.config import MONSTER_LIST_PATH
+DEBUG_LOG = True  # 调试输出开关，默认保持现有打印行为
 
 MONSTER_LIST_PATH = "./pic/guaiwu/longteng.txt"
 ITEM_NAME_PATH = "./物品名字.txt"
@@ -23,6 +23,9 @@ ESCORT_REGION_CONFIRM = (700, 428, 1223, 657)
 ESCORT_REGION_CHIEF = (11, 55, 1915, 718)
 ESCORT_REGION_FINISH = (11, 20, 389, 161)
 ESCORT_PIC_SIM = 0.8  # 押镖流程找图相似度阈值
+PET_PIC_SIM = 0.6  # 宝宝图片找图相似度阈值
+MONSTER_PIC_SIM = 0.85  # 怪物找图相似度阈值（不含宝宝）
+MONSTER_LIST_SIM = 0.82  # 怪物列表找图相似度阈值（含宝宝）
 
 DICT_NUM_PATH = "./字库/数字.txt"
 DICT_SYS_PATH = "./字库/系统字库 - 副本.txt"
