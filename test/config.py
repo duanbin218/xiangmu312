@@ -16,6 +16,12 @@ ESCORT_ACCEPT_PIC = "./pic/接受护送.bmp"
 ESCORT_CONFIRM_PIC = "./pic/镖车确定.bmp"
 ESCORT_CHIEF_PIC = "./pic/镖局总管.bmp"
 ESCORT_FINISH_PIC = "./pic/完成任务.bmp"
+# 押镖流程找图区域配置，统一管理便于调参
+ESCORT_REGION_MAIN = (5, 28, 1916, 823)
+ESCORT_REGION_DIALOG = (8, 9, 390, 164)
+ESCORT_REGION_CONFIRM = (700, 428, 1223, 657)
+ESCORT_REGION_CHIEF = (11, 55, 1915, 718)
+ESCORT_REGION_FINISH = (11, 20, 389, 161)
 
 DICT_NUM_PATH = "./字库/数字.txt"
 DICT_SYS_PATH = "./字库/系统字库 - 副本.txt"
