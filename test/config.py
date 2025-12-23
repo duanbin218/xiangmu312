@@ -7,6 +7,12 @@ ITEM_NAME_PATH = "./物品名字.txt"
 ITEM_NAME_EXTRA = "士头|除魔|聚灵珠（小）|魔血石"
 ITEM_TEXT_COLOR = "ffffff-000000"  # 物品找字颜色阈值，便于统一调整
 PET_PIC_PATH = "./pic/guaiwu/宝宝.bmp"
+ESCORT_BUREAU_PIC = "./pic/镖局.bmp"
+ESCORT_START_PIC = "./pic/开始押镖.bmp"
+ESCORT_ACCEPT_PIC = "./pic/接受护送.bmp"
+ESCORT_CONFIRM_PIC = "./pic/镖车确定.bmp"
+ESCORT_CHIEF_PIC = "./pic/镖局总管.bmp"
+ESCORT_FINISH_PIC = "./pic/完成任务.bmp"
 
 DICT_NUM_PATH = "./字库/数字.txt"
 DICT_SYS_PATH = "./字库/系统字库 - 副本.txt"
