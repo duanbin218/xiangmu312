@@ -334,8 +334,9 @@ class WorkerThread(QThread):
             # cv2.waitKey(1)
             cv2.imwrite(mask_path, mask_rgb)
 
-            dm_ret = self.大漠对象.FreePic(mask_path)
-            dm_ret = self.大漠对象.SetDisplayInput(f"pic:{mask_path}")
+            # 释放缓存并切换到图片输入，避免旧图干扰识别
+            self.大漠对象.FreePic(mask_path)
+            self.大漠对象.SetDisplayInput(f"pic:{mask_path}")
 
             self.大漠对象.UseDict(1)
 
@@ -368,7 +369,7 @@ class WorkerThread(QThread):
                     物品游戏坐标列表.add((物品名称,(物品游戏x,物品游戏y)))
                 # print('物品游戏坐标列表1111111111',物品游戏坐标列表)
 
-            self.大漠对象.SetDisplayInput("screen")
+            self.大漠对象.SetDisplayInput(config.DISPLAY_INPUT_SCREEN)
             # print('识字完成-------------------------------------------------------------------')
 
             time.sleep(0.1)
@@ -419,7 +420,7 @@ class WorkerThread(QThread):
             # cv2.waitKey(1)
             # cv2.moveWindow('map_img', 1926, 10)
             if self.map_img is None:
-                print("未找到 longyuanzhilu.bmp")
+                print(f"未找到 {config.MAP_IMAGE_PATH}")
                 return
             global bad_cells
             global last_clear_time

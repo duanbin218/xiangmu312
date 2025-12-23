@@ -9,6 +9,7 @@ ITEM_TEXT_COLOR = "ffffff-000000"  # 物品找字颜色阈值，便于统一调�
 PET_PIC_PATH = "./pic/guaiwu/宝宝.bmp"
 TEMP_CAPTURE_BMP = "temp_img.bmp"
 ITEM_MASK_BMP = "mask_rgb.bmp"
+DISPLAY_INPUT_SCREEN = "screen"
 ESCORT_BUREAU_PIC = "./pic/镖局.bmp"
 ESCORT_START_PIC = "./pic/开始押镖.bmp"
 ESCORT_ACCEPT_PIC = "./pic/接受护送.bmp"
@@ -35,6 +36,7 @@ MAP_CENTER_Y = 464           # 小地图/坐标系中心屏幕Y
 TILE_WIDTH = 48              # 游戏中 X 方向每格对应的屏幕像素
 TILE_HEIGHT = 32             # 游戏中 Y 方向每格对应的屏幕像素
 DEFAULT_CIRCLE_RADIUS = 170  # 八方位点击位置圆半径范围
+MOUSE_MOVE_DURATION_MS = 2000  # 鼠标相对移动的默认时长，统一调整入口
 
 # 大漠初始化与绑定相关配置，集中管理便于切换环境。
 DM_REG_CODE = "duanbin2187ebec7e363f16ead014d9bb6365ebdf6"

@@ -169,7 +169,7 @@ class 游戏控制器:
         """
         统一相对移动入口，便于后续调整移动策略。
         """
-        self.kmNet.enc_move_auto(int(dx), int(dy), 2000)
+        self.kmNet.enc_move_auto(int(dx), int(dy), config.MOUSE_MOVE_DURATION_MS)
 
     def move_without_click(
         self,
