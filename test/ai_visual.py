@@ -38,6 +38,24 @@ def _draw_grid_lines(vis: np.ndarray, width: int, height: int, cell_size: int, l
         cv2.line(vis, (0, py), (width * cell_size, py), line_color, 1)
 
 
+def _draw_text_with_outline(
+    img: np.ndarray,
+    text: str,
+    org,
+    font=cv2.FONT_HERSHEY_SIMPLEX,
+    font_scale: float = 0.45,
+    color=(255, 255, 255),
+    outline_color=(0, 0, 0),
+    thickness: int = 1,
+    outline_thickness: int = 2,
+):
+    """
+    文本描边绘制，统一样式避免多处重复调用。
+    """
+    cv2.putText(img, text, org, font, font_scale, outline_color, outline_thickness, cv2.LINE_AA)
+    cv2.putText(img, text, org, font, font_scale, color, thickness, cv2.LINE_AA)
+
+
 # =====================  可视化放大图像显示路径点  =====================
 def visualize_grid_and_path(
     grid: np.ndarray,
@@ -154,10 +172,11 @@ def visualize_move(
         tl = (max(0, xe - r) * scale, max(0, ye - r) * scale)
         br = (min(W - 1, xe + r) * scale + (scale - 1), min(H - 1, ye + r) * scale + (scale - 1))
         cv2.rectangle(vis, tl, br, color, 2)
-        cv2.putText(vis, f"E{(int(xe), int(ye))}", (xe * scale + 3, ye * scale + 14),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 2, cv2.LINE_AA)
-        cv2.putText(vis, f"E{(int(xe), int(ye))}", (xe * scale + 3, ye * scale + 14),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1, cv2.LINE_AA)
+        _draw_text_with_outline(
+            vis,
+            f"E{(int(xe), int(ye))}",
+            (xe * scale + 3, ye * scale + 14),
+        )
 
     # 绘制搜索中心点 + 搜索半径（方框）
     if search_center is None:
@@ -170,10 +189,11 @@ def visualize_move(
         cv2.rectangle(vis, tl, br, (255, 0, 255), 2)
     search_center_b = (cx * scale + scale // 2, cy * scale + scale // 2)
     cv2.circle(vis, search_center_b, max(3, scale // 3), (255, 255, 0), -1)
-    cv2.putText(vis, f"C{search_center}", (cx * scale + 3, cy * scale + 14),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 2, cv2.LINE_AA)
-    cv2.putText(vis, f"C{search_center}", (cx * scale + 3, cy * scale + 14),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1, cv2.LINE_AA)
+    _draw_text_with_outline(
+        vis,
+        f"C{search_center}",
+        (cx * scale + 3, cy * scale + 14),
+    )
 
     # 绘制 人物a 点（青色）与 T目的地坐标（黄色）
     ax, ay = a_pos
@@ -185,15 +205,18 @@ def visualize_move(
         cv2.circle(vis, t_center, max(3, scale // 3), (0, 255, 255), -1)
         cv2.line(vis, a_center, t_center, (0, 0, 0), 3)
         cv2.line(vis, a_center, t_center, (0, 255, 255), 2)
-        cv2.putText(vis, f"T{(int(tx), int(ty))}", (tx * scale + 3, ty * scale + 14),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 2, cv2.LINE_AA)
-        cv2.putText(vis, f"T{(int(tx), int(ty))}", (tx * scale + 3, ty * scale + 14),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 255), 1, cv2.LINE_AA)
+        _draw_text_with_outline(
+            vis,
+            f"T{(int(tx), int(ty))}",
+            (tx * scale + 3, ty * scale + 14),
+            color=(0, 255, 255),
+        )
     cv2.circle(vis, a_center, max(2, scale // 4), (255, 255, 255), -1)
-    cv2.putText(vis, f"P{a_pos}", (ax * scale + 3, ay * scale + scale - 6),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 2, cv2.LINE_AA)
-    cv2.putText(vis, f"P{a_pos}", (ax * scale + 3, ay * scale + scale - 6),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1, cv2.LINE_AA)
+    _draw_text_with_outline(
+        vis,
+        f"P{a_pos}",
+        (ax * scale + 3, ay * scale + scale - 6),
+    )
 
     try:
         cv2.imshow(window, vis)
