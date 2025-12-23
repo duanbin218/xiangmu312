@@ -202,11 +202,10 @@ class 游戏控制器:
 
             self.kmNet.enc_move_auto(int(总x移动), int(总y移动), 2000)
 
-            随机时间 = random.randint(10, 50)
-            self._delay(随机时间)
+            # 统一随机延时入口，便于调整节奏
+            self.随机延时(10, 50)
 
-        随机时间 = random.randint(延时a, 延时b)
-        self._delay(随机时间)
+        self.随机延时(延时a, 延时b)
 
     def move_with_left_click(
         self,
@@ -250,8 +249,7 @@ class 游戏控制器:
 
         self.kmNet.enc_move_auto(int(x移动), int(y移动), 2000)
 
-        随机时间 = random.randint(延时a, 延时b)
-        self._delay(随机时间)
+        self.随机延时(延时a, 延时b)
 
     def _move_with_click(
         self,
@@ -265,6 +263,8 @@ class 游戏控制器:
         """
         统一移动+点击入口，避免左右键和偏移/非偏移重复实现。
         """
+        if button not in ("left", "right"):
+            raise ValueError("button must be 'left' or 'right'")
         if use_offset:
             self.move_without_click(
                 目标x, 目标y,
@@ -288,11 +288,9 @@ class 游戏控制器:
             raise ValueError("button must be 'left' or 'right'")
 
         click(1)
-        点击按下延时 = random.randint(延时a, 延时b)
-        self._delay(点击按下延时)
+        self.随机延时(延时a, 延时b)
         click(0)
-        随机时间 = random.randint(延时a, 延时b)
-        self._delay(随机时间)
+        self.随机延时(延时a, 延时b)
 
     def left_click(self):
         self._mouse_click("left")
@@ -318,20 +316,15 @@ class 游戏控制器:
 
     def 键盘点击(self, HID值, 延时a=70, 延时b=200):
         self.kmNet.enc_keydown(HID值)
-        随机时间 = random.randint(延时a, 延时b)
-        self._delay(随机时间)
+        self.随机延时(延时a, 延时b)
         self.kmNet.enc_keyup(HID值)
-        随机时间 = random.randint(延时a, 延时b)
-        self._delay(随机时间)
+        self.随机延时(延时a, 延时b)
 
     def right_down(self):
         self.kmNet.enc_right(1)
 
-    def rigth_up(self):
+    def right_up(self):
         self.kmNet.enc_right(0)
-
-    # 可选：新代码可以用正确拼写，老代码保持兼容
-    right_up = rigth_up
 
     def 随机延时(self, 最小延时, 最大延时):
         随机时间 = random.randint(最小延时, 最大延时)
