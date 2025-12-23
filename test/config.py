@@ -52,6 +52,14 @@ PLAYER_SCAN_RECT = (3, 2, 1918, 924)
 PLAYER_EXCLUDE_RECT = (928, 373, 1005, 396)
 PLAYER_SCREEN_OFFSET_X = 7
 PLAYER_SCREEN_OFFSET_Y = 83
+# 物品名字长度 -> 屏幕坐标偏移（用于换算物品中心点）
+ITEM_NAME_OFFSET_BY_LEN = {
+    2: (10, 24),
+    3: (16, 24),
+    4: (22, 24),
+    5: (28, 24),
+    6: (36, 24),
+}
 # 玩家识别文本与颜色阈值，集中配置便于调整。
 PLAYER_FIND_TEXT = "D4|D5|D6|Z4|Z5|Z6|F4|F5|F6"
 PLAYER_FIND_COLOR = "ffffff-000000"
