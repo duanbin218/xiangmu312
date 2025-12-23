@@ -215,7 +215,7 @@ class WorkerThread(QThread):
                         # 坐标识别失败时不进行寻路，避免走到异常位置
                         time.sleep(0.1)
                         continue
-                    z, x, y = self.大漠对象.AiFindPic(150,119,1719,867, r"./pic/guaiwu/宝宝.bmp", 0.60, 0)
+                    z, x, y = self.大漠对象.AiFindPic(150,119,1719,867, config.PET_PIC_PATH, 0.60, 0)
                     # z, x, y = self.大漠对象.AiFindPic(543, 98, 1370, 714, r"./pic/guaiwu/单机_宝宝.bmp", 0.60, 0)
                     # 找到宝宝坐标,以宝宝坐标为中心找安全坐标点
 
@@ -339,12 +339,12 @@ class WorkerThread(QThread):
 
             self.大漠对象.UseDict(1)
 
-            ss = self.大漠对象.Ocr(0, 0, x2, y2, "ffffff-000000", 1.0)
+            ss = self.大漠对象.Ocr(0, 0, x2, y2, config.ITEM_TEXT_COLOR, 1.0)
             print("识字结果:---------------------------------------------------\n",ss)
 
             text = 物品名称路径
             物品游戏坐标列表 = set()
-            ret = self.大漠对象.FindStrFastEx(0, 0, x2, y2, text, "ffffff-000000",1)
+            ret = self.大漠对象.FindStrFastEx(0, 0, x2, y2, text, config.ITEM_TEXT_COLOR,1)
             if ret != '':
                 ret_list = ret.split('|')
                 for i in ret_list:
@@ -564,7 +564,7 @@ class WorkerThread(QThread):
             宝宝 = list()
             宝宝攻击范围 = [None, None, None, None]  # 0,1是左上角坐标.2,3是右下角坐标
 
-            返回_找图AIEx = self.大漠对象.AiFindPicEx(x1,y1,x2,y2, r"./pic/guaiwu/宝宝.bmp", 0.6, 0)
+            返回_找图AIEx = self.大漠对象.AiFindPicEx(x1,y1,x2,y2, config.PET_PIC_PATH, 0.6, 0)
             # 返回_找图AIEx = self.大漠对象.AiFindPicEx(627, 106, 1300, 712, r"./pic/guaiwu/单机_宝宝.bmp", 0.6, 0)
             # print("宝宝数量:",返回_找图AIEx)
             if 返回_找图AIEx != "":
@@ -634,7 +634,7 @@ class WorkerThread(QThread):
     def 召唤宝宝(self):
         print('召唤宝宝')
         for i in range(3):
-            返回_找图AIEx = self.大漠对象.AiFindPicEx(842,358, 1082,519, r"./pic/guaiwu/宝宝.bmp", 0.6, 0)
+            返回_找图AIEx = self.大漠对象.AiFindPicEx(842,358, 1082,519, config.PET_PIC_PATH, 0.6, 0)
             # 返回_找图AIEx = self.大漠对象.AiFindPicEx(842,358, 1082,519, r"./pic/guaiwu/单机_宝宝.bmp", 0.6, 0)
             if 返回_找图AIEx == '':
                 打怪控制.键盘点击(65)
