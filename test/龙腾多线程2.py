@@ -685,24 +685,49 @@ class WorkerThread(QThread):
                     打怪控制.随机延时(200, 400)
                 # 点击NPC接镖
                 for i in range(30):
-                    z, x, y = self.大漠对象.AiFindPic(*config.ESCORT_REGION_MAIN, config.ESCORT_BUREAU_PIC, 0.8, 0)
+                    z, x, y = self.大漠对象.AiFindPic(
+                        *config.ESCORT_REGION_MAIN,
+                        config.ESCORT_BUREAU_PIC,
+                        config.ESCORT_PIC_SIM,
+                        0,
+                    )
                     if z != -1:
                         打怪控制.move_with_left_click(x + 25, y - 34, -1, 1, 0, 10)
                         打怪控制.随机延时(200, 500)
-                    z, x, y = self.大漠对象.AiFindPic(*config.ESCORT_REGION_DIALOG, config.ESCORT_START_PIC, 0.8, 0)
+                    z, x, y = self.大漠对象.AiFindPic(
+                        *config.ESCORT_REGION_DIALOG,
+                        config.ESCORT_START_PIC,
+                        config.ESCORT_PIC_SIM,
+                        0,
+                    )
                     if z != -1 :
                         打怪控制.move_with_left_click(x, y, 0, 20, 0, 8)
                         打怪控制.随机延时(200, 500)
-                    z, x, y = self.大漠对象.AiFindPic(*config.ESCORT_REGION_DIALOG, config.ESCORT_ACCEPT_PIC, 0.8, 0)
+                    z, x, y = self.大漠对象.AiFindPic(
+                        *config.ESCORT_REGION_DIALOG,
+                        config.ESCORT_ACCEPT_PIC,
+                        config.ESCORT_PIC_SIM,
+                        0,
+                    )
                     if z != -1 :
                         打怪控制.move_with_left_click(x, y,  0, 20, 0, 7)
                         打怪控制.随机延时(200, 500)
-                    z, x, y = self.大漠对象.AiFindPic(*config.ESCORT_REGION_CONFIRM, config.ESCORT_CONFIRM_PIC, 0.8, 0)
+                    z, x, y = self.大漠对象.AiFindPic(
+                        *config.ESCORT_REGION_CONFIRM,
+                        config.ESCORT_CONFIRM_PIC,
+                        config.ESCORT_PIC_SIM,
+                        0,
+                    )
                     if z != -1:
                         打怪控制.move_with_left_click(x, y, 0, 30, 0, 10)
                         打怪控制.随机延时(200, 500)
                         # 有时候找图找的坐标不准确,没有"镖车确定"的图片,就是接到镖车了
-                        z, x, y = self.大漠对象.AiFindPic(*config.ESCORT_REGION_CONFIRM, config.ESCORT_CONFIRM_PIC, 0.8, 0)
+                        z, x, y = self.大漠对象.AiFindPic(
+                            *config.ESCORT_REGION_CONFIRM,
+                            config.ESCORT_CONFIRM_PIC,
+                            config.ESCORT_PIC_SIM,
+                            0,
+                        )
                         if z == -1:
                             self.caozuo.emit("接到镖车")
                             break
@@ -727,16 +752,31 @@ class WorkerThread(QThread):
                     打怪控制.随机延时(200, 400)
                 # 点击NPC交镖车
                 for i in range(30):
-                    z, x, y = self.大漠对象.AiFindPic(*config.ESCORT_REGION_CHIEF, config.ESCORT_CHIEF_PIC, 0.8, 0)
+                    z, x, y = self.大漠对象.AiFindPic(
+                        *config.ESCORT_REGION_CHIEF,
+                        config.ESCORT_CHIEF_PIC,
+                        config.ESCORT_PIC_SIM,
+                        0,
+                    )
                     if z != -1:
                         打怪控制.move_with_left_click(x, y, 0, 23, 0, 10)
                         打怪控制.随机延时(200, 500)
-                    z, x, y = self.大漠对象.AiFindPic(*config.ESCORT_REGION_FINISH, config.ESCORT_FINISH_PIC, 0.8, 0)
+                    z, x, y = self.大漠对象.AiFindPic(
+                        *config.ESCORT_REGION_FINISH,
+                        config.ESCORT_FINISH_PIC,
+                        config.ESCORT_PIC_SIM,
+                        0,
+                    )
                     if z != -1:
                         打怪控制.move_with_left_click(x, y,  0, 15, 0, 8)
                         打怪控制.随机延时(1000, 1500)
                         # 没找到完成任务,就是已经交任务了
-                        z, x, y = self.大漠对象.AiFindPic(*config.ESCORT_REGION_FINISH, config.ESCORT_FINISH_PIC, 0.8, 0)
+                        z, x, y = self.大漠对象.AiFindPic(
+                            *config.ESCORT_REGION_FINISH,
+                            config.ESCORT_FINISH_PIC,
+                            config.ESCORT_PIC_SIM,
+                            0,
+                        )
                         if z == -1:
                             self.caozuo.emit("镖车交接完成")
                             # 按1键回城
