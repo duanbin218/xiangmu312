@@ -55,6 +55,10 @@ WINDOW_MOVE_Y = -26
 等级与中心点的X偏移 = 7
 等级与中心点的Y偏移 = 83
 
+# 玩家识别文本与颜色阈值，集中配置便于调整。
+PLAYER_FIND_TEXT = "D4|D5|D6|Z4|Z5|Z6|F4|F5|F6"
+PLAYER_FIND_COLOR = "ffffff-000000"
+
 # 颜色协议（BGR），与 ai算法._parse_enemies 保持一致。
 ENEMY_COLOR_S = (19, 19, 255)   # 高危怪：半径/权重更大
 ENEMY_COLOR_A = (7, 2, 254)     # 中危怪

@@ -106,7 +106,7 @@ def scan_player(dm, screen_to_game, player_pos=None, player_rect=None):
         return []
 
     dm.UseDict(2)
-    ret = dm.FindStrEx(*config.大范围识别玩家区域,"D4|D5|D6|Z4|Z5|Z6|F4|F5|F6", "ffffff-000000", 1)
+    ret = dm.FindStrEx(*config.大范围识别玩家区域, config.PLAYER_FIND_TEXT, config.PLAYER_FIND_COLOR, 1)
     if ret == "":
         return []
 
