@@ -45,6 +45,7 @@ WINDOW_MOVE_Y = -26
 # OCR/识别坐标集中管理，避免多处硬编码导致漂移。
 OCR_PLAYER_POS_MAIN = (48, 1057, 108, 1078)
 OCR_HP_RECT = (21, 1042, 81, 1055)
+OCR_NUMBER_COLOR = "#255-50|#253-50"  # 统一数字类 OCR 颜色阈值
 
 # 玩家识别区域与坐标偏移配置。
 PLAYER_SCAN_RECT = (3, 2, 1918, 924)

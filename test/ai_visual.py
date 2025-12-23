@@ -56,12 +56,25 @@ def _draw_text_with_outline(
     cv2.putText(img, text, org, font, font_scale, color, thickness, cv2.LINE_AA)
 
 
+def _safe_imshow(window_name: str, image: np.ndarray, outfile: Optional[str] = None):
+    """
+    安全显示图像：GUI 不可用时可选落盘，避免异常中断。
+    """
+    try:
+        cv2.imshow(window_name, image)
+    except Exception:
+        if outfile:
+            cv2.imwrite(outfile, image)
+            print(f"[info] GUI 不可用，已保存到: {outfile}")
+
+
 # =====================  可视化放大图像显示路径点  =====================
 def visualize_grid_and_path(
     grid: np.ndarray,
     path: Optional[List[Tuple[int, int]]],
     win_name: str = "A* path",
     cell_size: int = 30,
+    outfile: Optional[str] = "viz_path.png",
 ):
     """
     用 OpenCV 把小网格放大显示，并把路径画出来。
@@ -95,7 +108,8 @@ def visualize_grid_and_path(
             cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2, cv2.LINE_AA
         )
 
-    cv2.imshow(win_name, vis)
+    # GUI 不可用时落盘，便于排查
+    _safe_imshow(win_name, vis, outfile)
 
 
 # =====================  先放大图像,在放大后的图像上绘制点  =====================
@@ -104,6 +118,7 @@ def visualize_grid_and_point(
     point: Tuple,
     win_name: str = "A* path",
     cell_size: int = 30,
+    outfile: Optional[str] = "viz_point.png",
 ):
     vis, h, w = _make_grid_vis(grid, cell_size)
 
@@ -117,7 +132,8 @@ def visualize_grid_and_point(
     else:
         print("传入的坐标点为None")
 
-    cv2.imshow(win_name, vis)
+    # GUI 不可用时落盘，便于排查
+    _safe_imshow(win_name, vis, outfile)
     return vis
 
 
@@ -218,11 +234,8 @@ def visualize_move(
         (ax * scale + 3, ay * scale + scale - 6),
     )
 
-    try:
-        cv2.imshow(window, vis)
-    except Exception:
-        cv2.imwrite(outfile, vis)
-        print(f"[info] GUI 不可用，已保存到: {outfile}")
+    # 统一 GUI 显示出口，避免多处 try/except
+    _safe_imshow(window, vis, outfile)
 
 
 # =====================  Demo：可视化样例  =====================
