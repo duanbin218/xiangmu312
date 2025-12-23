@@ -157,6 +157,12 @@ class 游戏控制器:
         self._delay(毫秒)
 
     # ========= 鼠标基础操作 =========
+    def _move_relative(self, dx, dy):
+        """
+        统一相对移动入口，便于后续调整移动策略。
+        """
+        self.kmNet.enc_move_auto(int(dx), int(dy), 2000)
+
     def move_without_click(
         self,
         目标x, 目标y,
@@ -168,7 +174,7 @@ class 游戏控制器:
         从当前位置相对移动到目标坐标，带随机偏移和延时。
         """
         当前x, 当前y = win32api.GetCursorPos()
-        print(f"\n起始位置: x={当前x}, y={当前y}")
+        # print(f"\n起始位置: x={当前x}, y={当前y}")
 
         x移动 = 目标x - 当前x
         y移动 = 目标y - 当前y
@@ -178,14 +184,14 @@ class 游戏控制器:
         总x移动 = x移动 + x随机偏移
         总y移动 = y移动 + y随机偏移
 
-        self.kmNet.enc_move_auto(int(总x移动), int(总y移动), 2000)
+        self._move_relative(总x移动, 总y移动)
 
         for _ in range(5):
             当前x, 当前y = win32api.GetCursorPos()
             x移动 = 目标x - 当前x
             y移动 = 目标y - 当前y
             if abs(x移动) < 2 and abs(y移动) < 2:
-                print("位置正确")
+                # print("位置正确")
                 break
 
             x随机偏移 = random.randint(最小x偏移, 最大x偏移)
@@ -193,7 +199,7 @@ class 游戏控制器:
             总x移动 = x移动 + x随机偏移
             总y移动 = y移动 + y随机偏移
 
-            self.kmNet.enc_move_auto(int(总x移动), int(总y移动), 2000)
+            self._move_relative(总x移动, 总y移动)
 
             self.随机延时(10,50)
 
@@ -239,7 +245,7 @@ class 游戏控制器:
         x移动 = 目标x - 当前x
         y移动 = 目标y - 当前y
 
-        self.kmNet.enc_move_auto(int(x移动), int(y移动), 2000)
+        self._move_relative(x移动, y移动)
 
         self.随机延时(延时a, 延时b)
 
