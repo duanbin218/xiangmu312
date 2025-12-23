@@ -392,14 +392,14 @@ class 游戏控制器:
         屏幕坐标y偏移量 = config.MAP_CENTER_Y + 偏移量y - 目标屏幕y
         游戏坐标x偏移量 = 屏幕坐标x偏移量 / config.TILE_WIDTH
         游戏坐标y偏移量 = 屏幕坐标y偏移量 / config.TILE_HEIGHT
-        整数x偏移量 = cls.custom_int(游戏坐标x偏移量)
-        整数y偏移量 = cls.custom_int(游戏坐标y偏移量)
+        整数x偏移量 = cls._round_half_away_from_zero(游戏坐标x偏移量)
+        整数y偏移量 = cls._round_half_away_from_zero(游戏坐标y偏移量)
         游戏坐标x = int(人物游戏x) - int(整数x偏移量)
         游戏坐标y = int(人物游戏y) - int(整数y偏移量)
         return 游戏坐标x, 游戏坐标y
 
     @staticmethod
-    def custom_int(a: float, eps: float = 1e-12) -> int:
+    def _round_half_away_from_zero(a: float, eps: float = 1e-12) -> int:
         """
         # a是正数,
         - 如果它的小数部分小于等于0.5,舍弃小数部分,变量a变成正整数,
