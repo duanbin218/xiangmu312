@@ -23,14 +23,21 @@ def _make_gird_vis(grid: np.ndarray, cell_size: int, line_color=(200, 200, 200))
         interpolation=cv2.INTER_NEAREST
     )
 
-    # 画淡灰色网格线
-    for x in range(w + 1):
-        px = x * cell_size
-        cv2.line(vis, (px, 0), (px, h * cell_size), line_color, 1)
-    for y in range(h + 1):
-        py = y * cell_size
-        cv2.line(vis, (0, py), (w * cell_size, py), line_color, 1)
+    _draw_grid_lines(vis, w, h, cell_size, line_color)
     return vis, h, w
+
+
+# region 绘制网格线
+def _draw_grid_lines(vis: np.ndarray, width: int, height: int, cell_size: int, line_color):
+    """
+    绘制网格线，便于多处可视化复用样式。
+    """
+    for x in range(width + 1):
+        px = x * cell_size
+        cv2.line(vis, (px, 0), (px, height * cell_size), line_color, 1)
+    for y in range(height + 1):
+        py = y * cell_size
+        cv2.line(vis, (0, py), (width * cell_size, py), line_color, 1)
 # endregion
 
 
@@ -139,12 +146,7 @@ def visualize_move(
         vis = base.copy()
 
     # 画网格线
-    for i in range(W + 1):
-        x = i * scale
-        cv2.line(vis, (x, 0), (x, H * scale), (180, 180, 180), 1)
-    for j in range(H + 1):
-        y = j * scale
-        cv2.line(vis, (0, y), (W * scale, y), (180, 180, 180), 1)
+    _draw_grid_lines(vis, W, H, scale, (180,180,180))
 
     # 绘制敌人 + “切比雪夫半径方框”
     for (xe, ye), r, w in enemies:
