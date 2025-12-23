@@ -383,8 +383,12 @@ def next_move_a(
     else:
         cx, cy = _clamp_center(search_center, W, H)
 
-    # ===== 不用局部模式 / 没有 search_radius：直接全图算 =====
-    if (not use_local) or (search_radius is None):
+    def _run_full_grid(reason: Optional[str] = None):
+        """
+        统一全图计算入口，避免多处重复参数与日志拼接。
+        """
+        if reason:
+            print(reason)
         best = _next_move_core(
             (ax, ay),
             grid,
@@ -396,6 +400,10 @@ def next_move_a(
         )
         print('安全点坐标(全图):', best)
         return best
+
+    # ===== 不用局部模式 / 没有 search_radius：直接全图算 =====
+    if (not use_local) or (search_radius is None):
+        return _run_full_grid()
 
     # ===== 先在全图上解析敌人，估一个最大半径 =====
     enemies_full = _parse_enemies(grid)
@@ -430,18 +438,8 @@ def next_move_a(
 
     # patch 太大 -> 回退全图
     if subW > max_patch_size or subH > max_patch_size:
-        print(f"next_move_a: 局部 patch 太大({subW}x{subH}), 回退到全图计算")
-        best = _next_move_core(
-            (ax, ay),
-            grid,
-            (cx, cy),
-            search_radius,
-            selection_method,
-            players=players,
-            escape_mode=escape_mode,
-        )
-        print('安全点坐标(全图):', best)
-        return best
+        return _run_full_grid(f"next_move_a: 局部 patch 太大({subW}x{subH}), 回退到全图计算")
+
 
     # ===== 裁剪出局部 sub_grid =====
     sub_grid = grid[py0:py1 + 1, px0:px1 + 1]
@@ -471,18 +469,7 @@ def next_move_a(
     )
 
     if best_local is None:
-        print("next_move_a: 局部搜索未找到可用安全点, 回退全图")
-        best = _next_move_core(
-            (ax, ay),
-            grid,
-            (cx, cy),
-            search_radius,
-            selection_method,
-            players=players,
-            escape_mode=escape_mode,
-        )
-        print('安全点坐标(全图):', best)
-        return best
+        return _run_full_grid("next_move_a: 局部搜索未找到可用安全点, 回退全图")
 
     bx, by = best_local
 
