@@ -215,13 +215,33 @@ class 游戏控制器:
         最小y偏移=0, 最大y偏移=0,
         延时a=100, 延时b=200,
     ):
-        self.move_without_click(
+        self._move_with_click(
+            "left",
             目标x, 目标y,
             最小x偏移, 最大x偏移,
             最小y偏移, 最大y偏移,
             延时a, 延时b,
+            use_offset=True,
         )
-        self.left_click()
+
+    def move_with_right_click(
+        self,
+        目标x, 目标y,
+        最小x偏移=0, 最大x偏移=0,
+        最小y偏移=0, 最大y偏移=0,
+        延时a=100, 延时b=200,
+    ):
+        """
+        右键版带偏移移动点击，保持与左键一致的行为入口。
+        """
+        self._move_with_click(
+            "right",
+            目标x, 目标y,
+            最小x偏移, 最大x偏移,
+            最小y偏移, 最大y偏移,
+            延时a, 延时b,
+            use_offset=True,
+        )
 
     def simple_move_without_click(self, 目标x, 目标y, 延时a=100, 延时b=200):
         当前x, 当前y = win32api.GetCursorPos()
@@ -232,6 +252,29 @@ class 游戏控制器:
 
         随机时间 = random.randint(延时a, 延时b)
         self._delay(随机时间)
+
+    def _move_with_click(
+        self,
+        button: str,
+        目标x, 目标y,
+        最小x偏移=0, 最大x偏移=0,
+        最小y偏移=0, 最大y偏移=0,
+        延时a=100, 延时b=200,
+        use_offset: bool = True,
+    ):
+        """
+        统一移动+点击入口，避免左右键和偏移/非偏移重复实现。
+        """
+        if use_offset:
+            self.move_without_click(
+                目标x, 目标y,
+                最小x偏移, 最大x偏移,
+                最小y偏移, 最大y偏移,
+                延时a, 延时b,
+            )
+        else:
+            self.simple_move_without_click(目标x, 目标y, 延时a, 延时b)
+        self._mouse_click(button, 延时a, 延时b)
 
     def _mouse_click(self, button: str, 延时a=70, 延时b=200):
         """
@@ -258,12 +301,20 @@ class 游戏控制器:
         self._mouse_click("right")
 
     def simple_move_with_left_click(self, 目标x, 目标y, 延时a=100, 延时b=200):
-        self.simple_move_without_click(目标x, 目标y, 延时a, 延时b)
-        self.left_click()
+        self._move_with_click(
+            "left",
+            目标x, 目标y,
+            延时a=延时a, 延时b=延时b,
+            use_offset=False,
+        )
 
     def simple_move_with_right_click(self, 目标x, 目标y, 延时a=100, 延时b=200):
-        self.simple_move_without_click(目标x, 目标y, 延时a, 延时b)
-        self.right_click()
+        self._move_with_click(
+            "right",
+            目标x, 目标y,
+            延时a=延时a, 延时b=延时b,
+            use_offset=False,
+        )
 
     def 键盘点击(self, HID值, 延时a=70, 延时b=200):
         self.kmNet.enc_keydown(HID值)
