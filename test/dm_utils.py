@@ -80,7 +80,13 @@ def scan_players(dm, screen_to_game, player_pos=None, player_rect=None):
 
     dm.UseDict(2)
     sx1, sy1, sx2, sy2 = config.PLAYER_SCAN_RECT
-    ret = dm.FindStrEx(sx1, sy1, sx2, sy2, "D4|D5|D6|Z4|Z5|Z6|F4|F5|F6", "ffffff-000000", 1)
+    # 统一使用配置中的找字规则，避免多处硬编码漂移
+    ret = dm.FindStrEx(
+        sx1, sy1, sx2, sy2,
+        config.PLAYER_FIND_TEXT,
+        config.PLAYER_FIND_COLOR,
+        1,
+    )
     if ret == "":
         return []
 

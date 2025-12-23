@@ -51,6 +51,9 @@ PLAYER_SCAN_RECT = (3, 2, 1918, 924)
 PLAYER_EXCLUDE_RECT = (928, 373, 1005, 396)
 PLAYER_SCREEN_OFFSET_X = 7
 PLAYER_SCREEN_OFFSET_Y = 83
+# 玩家识别文本与颜色阈值，集中配置便于调整。
+PLAYER_FIND_TEXT = "D4|D5|D6|Z4|Z5|Z6|F4|F5|F6"
+PLAYER_FIND_COLOR = "ffffff-000000"
 
 # 颜色协议（BGR），与 ai算法._parse_enemies 保持一致。
 ENEMY_COLOR_S = (19, 19, 255)   # 高危怪：半径/权重更大
