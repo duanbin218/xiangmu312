@@ -79,11 +79,11 @@ def init_runtime(ip=config.KMNET_IP, port=config.KMNET_PORT, token=config.KMNET_
     runtime_started = True
 
 # ================== 延时函数（毫秒） ==================
-def 打怪延时(毫秒: int):
+def _delay_with_events(毫秒: int, wait_events=None, min_sleep: float | None = None):
     """
-    主打怪线程用的高精度延时函数：
-    - 每 100ms 检查一次 exit_flag
-    - 会等待 打怪_event，可以被其他线程抢占暂停
+    统一延时循环，减少多处重复逻辑。
+    - wait_events: 需要等待的 Event 列表（可为空）
+    - min_sleep: 当剩余时间不足时的最小 sleep（监控线程可用）
     """
     global exit_flag
     start = time.perf_counter()
@@ -96,18 +96,30 @@ def 打怪延时(毫秒: int):
             kmNet.enc_left(0)
             os._exit(0)
 
-        # 抢占控制：如果 event 被 clear，这里会阻塞
-        全局_event.wait()
-        打怪_event.wait()
+        if wait_events:
+            for ev in wait_events:
+                if ev is not None:
+                    ev.wait()
 
-        # 计算已过时间（毫秒）
         elapsed_ms = (time.perf_counter() - start) * 1000
         if elapsed_ms >= target_ms:
             break
 
         remaining_ms = target_ms - elapsed_ms
-        sleep_time = min(0.1, remaining_ms / 1000)
+        if remaining_ms > 0:
+            sleep_time = min(0.1, remaining_ms / 1000)
+        else:
+            sleep_time = min_sleep if min_sleep is not None else 0.01
         time.sleep(sleep_time)
+
+
+def 打怪延时(毫秒: int):
+    """
+    主打怪线程用的高精度延时函数：
+    - 每 100ms 检查一次 exit_flag
+    - 会等待 打怪_event，可以被其他线程抢占暂停
+    """
+    _delay_with_events(毫秒, wait_events=[全局_event, 打怪_event])
 
 
 def 血量延时(毫秒: int):
@@ -116,26 +128,7 @@ def 血量延时(毫秒: int):
     - 同样每 100ms 检查 exit_flag
     - 不受 打怪_event 影响（不被抢占暂停）
     """
-    global exit_flag
-    start = time.perf_counter()
-    target_ms = 毫秒
-
-    while True:
-        if exit_flag:
-            kmNet.enc_right(0)
-            kmNet.enc_left(0)
-            os._exit(0)
-
-        # 抢占控制：如果 event 被 clear，这里会阻塞
-        全局_event.wait()
-
-        elapsed_ms = (time.perf_counter() - start) * 1000
-        if elapsed_ms >= target_ms:
-            break
-
-        remaining_ms = target_ms - elapsed_ms
-        sleep_time = min(0.1, remaining_ms / 1000)
-        time.sleep(sleep_time)
+    _delay_with_events(毫秒, wait_events=[全局_event])
 
 
 def 监控延时(毫秒: int):
@@ -144,23 +137,7 @@ def 监控延时(毫秒: int):
     - 同样每 100ms 检查 exit_flag
     - 最高优先级,不受任何 Event 影响
     """
-    global exit_flag
-    start = time.perf_counter()
-    target_ms = 毫秒
-
-    while True:
-        if exit_flag:
-            kmNet.enc_right(0)
-            kmNet.enc_left(0)
-            os._exit(0)
-
-        elapsed_ms = (time.perf_counter() - start) * 1000
-        if elapsed_ms >= target_ms:
-            break
-
-        remaining_ms = max(0, target_ms - elapsed_ms)
-        sleep_time = min(0.1, remaining_ms / 1000) if remaining_ms > 0 else 0.01
-        time.sleep(sleep_time)
+    _delay_with_events(毫秒, wait_events=None, min_sleep=0.01)
 
 
 # ================== 统一控制类：鼠标/键盘 + 游戏坐标 ==================
