@@ -233,21 +233,29 @@ class 游戏控制器:
         随机时间 = random.randint(延时a, 延时b)
         self._delay(随机时间)
 
-    def left_click(self):
-        self.kmNet.enc_left(1)
-        点击按下延时 = random.randint(70, 200)
+    def _mouse_click(self, button: str, 延时a=70, 延时b=200):
+        """
+        统一鼠标点击逻辑，避免左右键重复实现。
+        """
+        if button == "left":
+            click = self.kmNet.enc_left
+        elif button == "right":
+            click = self.kmNet.enc_right
+        else:
+            raise ValueError("button must be 'left' or 'right'")
+
+        click(1)
+        点击按下延时 = random.randint(延时a, 延时b)
         self._delay(点击按下延时)
-        self.kmNet.enc_left(0)
-        随机时间 = random.randint(70, 200)
+        click(0)
+        随机时间 = random.randint(延时a, 延时b)
         self._delay(随机时间)
 
+    def left_click(self):
+        self._mouse_click("left")
+
     def right_click(self):
-        self.kmNet.enc_right(1)
-        点击按下延时 = random.randint(70, 200)
-        self._delay(点击按下延时)
-        self.kmNet.enc_right(0)
-        随机时间 = random.randint(70, 200)
-        self._delay(随机时间)
+        self._mouse_click("right")
 
     def simple_move_with_left_click(self, 目标x, 目标y, 延时a=100, 延时b=200):
         self.simple_move_without_click(目标x, 目标y, 延时a, 延时b)
