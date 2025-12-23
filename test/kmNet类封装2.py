@@ -9,6 +9,14 @@ import ctypes
 import math
 import config
 
+# 方位移动的随机范围，区分走路/跑步，避免多处硬编码。
+WALK_R90_MIN = (-4, 4)
+WALK_R90_MAX = (-100, 100)
+WALK_R45 = (-36, 36)
+RUN_R90_MIN = (-1, 1)
+RUN_R90_MAX = (-50, 50)
+RUN_R45 = (-50, 50)
+
 # ================== 全局标志 & 事件 ==================
 exit_flag = False
 runtime_started = False  # 避免重复初始化 kmNet / 键盘监听
@@ -435,9 +443,9 @@ class 游戏控制器:
             return
         x, y = self._随机方向坐标(
             目标方位,
-            r90_min=(-4, 4),
-            r90_max=(-100, 100),
-            r45=(-36, 36),
+            r90_min=WALK_R90_MIN,
+            r90_max=WALK_R90_MAX,
+            r45=WALK_R45,
         )
         self.simple_move_without_click(x, y)
 
@@ -446,9 +454,9 @@ class 游戏控制器:
             return
         x, y = self._随机方向坐标(
             目标方位,
-            r90_min=(-4, 4),
-            r90_max=(-100, 100),
-            r45=(-36, 36),
+            r90_min=WALK_R90_MIN,
+            r90_max=WALK_R90_MAX,
+            r45=WALK_R45,
         )
         self.simple_move_with_left_click(x, y, 延时a, 延时b)
 
@@ -457,9 +465,9 @@ class 游戏控制器:
             return
         x, y = self._随机方向坐标(
             目标方位,
-            r90_min=(-1, 1),
-            r90_max=(-50, 50),
-            r45=(-50, 50),
+            r90_min=RUN_R90_MIN,
+            r90_max=RUN_R90_MAX,
+            r45=RUN_R45,
         )
         self.simple_move_with_right_click(x, y, 延时a, 延时b)
 
