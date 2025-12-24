@@ -5,12 +5,93 @@ from public import *
 import ai算法
 import config
 import cv2
+import dm_utils
 
-def small_area_checker(dm):
+
+def 地图上绘制怪物点(img: Any, master_location: list):
+    # 地图上绘制危险级别 S 的怪
+    S_list = [(a, b) for path, a, b in master_location if 'S' in path]
+    if S_list:
+        sb, sg, sr = config.ENEMY_COLOR_S
+        for (mx, my) in S_list:
+            img[my, mx][0] = sb
+            img[my, mx][1] = sg
+            img[my, mx][2] = sr
+    # 地图上绘制危险级别 A 的怪
+    A_list = [(a, b) for path, a, b in master_location if 'S' not in path]
+    if A_list:
+        ab, ag, ar = config.ENEMY_COLOR_A
+        for (mx, my) in A_list:
+            img[my, mx][0] = ab
+            img[my, mx][1] = ag
+            img[my, mx][2] = ar
+    # 地图上绘制宝宝
+    baobao_list = [(a, b) for path, a, b in master_location if '宝宝' in path]
+    if baobao_list:
+        pb, pg, pr = config.PET_COLOR
+        for (mx, my) in baobao_list:
+            img[my, mx][0] = pb
+            img[my, mx][1] = pg
+            img[my, mx][2] = pr
+    return img
+
+with open(config.MONSTER_LIST_PATH, 'r', encoding='UTF-8') as f:
+    怪物图片路径 = f.read()
+    怪物图片路径 = 怪物图片路径.replace('\n','|')
+    # 与配置保持一致，且兼容列表中不带 "./" 的写法
+    pet_path = config.PET_PIC_PATH[2:] if config.PET_PIC_PATH.startswith("./") else config.PET_PIC_PATH
+    target = f"{pet_path}|"
+    # target = "|pic/guaiwu/单机_宝宝.bmp"
+    怪物图片路径_不包括宝宝 = 怪物图片路径.replace(target, "")
+    怪物路径列表 = 怪物图片路径.split('|')
+    if config.DEBUG_LOG:
+        print(怪物图片路径)
+        print(怪物路径列表)
+        print(怪物图片路径_不包括宝宝)
+
+def 更新地图_怪物点(dm: object, controller: object):
+    map_img = cv2.imread(config.MAP_IMAGE_PATH)
+    怪物列表_包括宝宝 = 识别怪物坐标(dm, controller, 543, 98, 1370, 714, 怪物图片路径, config.MONSTER_LIST_SIM)
+    if 怪物列表_包括宝宝:
+        map_img = 地图上绘制怪物点(map_img, 怪物列表_包括宝宝)
+    return map_img
+
+
+def 识别怪物坐标(dm: object, controller: object, x1,y1,x2,y2,path,sim):
+    """
+    找图找到范围内所有怪物的屏幕坐标,转换成游戏坐标,按(怪物名称,怪物游戏x,怪物游戏y)元组的形式存储到列表中
+    """
+    img_path = path
+    人物坐标x, 人物坐标y = dm_utils.ocr_player_pos(dm)
+    if 人物坐标x < 0 or 人物坐标y < 0:
+        # OCR 坐标无效时跳过找图，避免无意义的坐标转换
+        return []
+    返回_找图AIEx = dm.AiFindPicEx(x1,y1,x2,y2, fr"./{img_path}", sim, 0)
+    if 返回_找图AIEx != '':
+        返回_找图AIEx_list = 返回_找图AIEx.split('|')
+        怪物坐标列表 = []
+        for i in 返回_找图AIEx_list:
+            i_list = i.split(',')
+            # 以血量为标准做怪物名字图,找到的坐标x+14,y+34偏移后,就是怪物的中心位置
+            怪物图片序号 = int(i_list[0])
+            怪物名字 = 怪物路径列表[怪物图片序号]
+            怪物屏幕x = int(i_list[1]) + 14
+            怪物屏幕y = int(i_list[2]) + 34
+            游戏坐标x, 游戏坐标y = controller.屏幕坐标转游戏坐标(人物坐标x, 人物坐标y, 怪物屏幕x, 怪物屏幕y)
+            # 把怪物名字也存储到列表,后期要根据怪物名字在地图上标记不同的颜色点
+            怪物坐标 = (怪物名字,游戏坐标x, 游戏坐标y)
+            if 怪物坐标 not in 怪物坐标列表:
+                怪物坐标列表.append(怪物坐标)
+        return 怪物坐标列表
+    else:
+        return []
+
+
+def small_area_checker(dm: object):
     z, _, _ = dm.AiFindPic(843, 359, 1084, 513, 怪物图片路径_不包括宝宝, config.MONSTER_PIC_SIM, 0)  # 在小区域内找怪图
     return z != -1  # 大漠：z != -1 表示找到了图
 
-def big_area_checker(dm):
+def big_area_checker(dm: object):
     z, _, _ = dm.AiFindPic(5, 28, 1916, 823, 怪物图片路径_不包括宝宝, config.MONSTER_PIC_SIM, 0)
     return z != -1  # 大漠：z != -1 表示找到了图
 
@@ -23,7 +104,8 @@ def 地图上绘制玩家点(img,玩家坐标列表:list):
         img[my, mx][2] = pr
     return img
 
-def update_map_fn(dm,controller):
+
+def update_map_fn(dm: object,controller: object):
     map_img = cv2.imread(config.MAP_IMAGE_PATH)
     玩家坐标列表 = dm_utils.scan_player(
         dm,
@@ -82,21 +164,6 @@ def walk_path(
     """
     if controller is None:  # 外部没传控制器时，默认用“监控控制”（避免 None 导致调用失败）
         controller = 监控控制  # 监控控制里封装了方位判断、鼠标按下/抬起、左键点方向等动作
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     if not path:  # 没有路径点就无需行走
         return  # 直接返回 None（上层可据此判断无需移动）
