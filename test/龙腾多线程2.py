@@ -17,6 +17,9 @@ from kmNet类封装2 import *
 from 常量 import changliang as cl
 import config
 import dm_utils  # OCR 通用工具，避免重复解析逻辑。
+import 寻路
+
+
 
 init_runtime()
 
@@ -1225,6 +1228,48 @@ class MyWindow(QMainWindow):
         self.plainTextEdit.appendPlainText("解除绑定")
 
     def ceshi(self):
+        try:
+
+            dms_a[0].UseDict(2)
+            s1 = time.perf_counter()
+            frame,players = self.更新地图_玩家点()
+            e1 = time.perf_counter()
+            print("更新地图耗时:",e1-s1)
+            人物x, 人物y = dm_utils.ocr_player_pos(dms_a[0])
+
+            s2 = time.perf_counter()
+            safe_point = ai算法.next_move_a((人物x, 人物y), frame, (人物x, 人物y), search_radius=25, selection_method=1,players=players,escape_mode='away')
+            e2 = time.perf_counter()
+            print("计算safe_point耗时:",e2-s2)
+            ai_visual.visualize_move(
+                frame, (人物x, 人物y), safe_point,
+                search_center=(人物x, 人物y), search_radius=25,
+                show_risk=True, scale=15, window="demo_case",
+                outfile="viz_demo.png"
+            )
+            cv2.waitKey(1)
+            if safe_point is not None:
+                s3 = time.perf_counter()
+                path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 0, 0, 0.001, 0)
+                e3 = time.perf_counter()
+                print("计算path耗时:", e3 - s3)
+
+                print("a星寻路路径点",path)
+                if path is not None:
+                    ai_visual.visualize_grid_and_path(frame, path=path, win_name="path", cell_size=15)
+                    ret_path_list = 寻路.walk_path(
+                        path,
+                        dm=dms_a[0],
+                        get_pos=dm_utils.ocr_player_pos,
+                        controller=监控控制,
+                        bad_cells=bad_cells
+                    )
+                    print("实际移动路径点",ret_path_list)
+                    ai_visual.visualize_grid_and_path(frame, path=ret_path_list, win_name="ret_path_list", cell_size=15)
+
+        except Exception as e:
+            print(repr(e))  # 输出异常的类型
+            traceback.print_exc()
         pass
 
     def ceshi2(self):
