@@ -66,12 +66,18 @@ def _safe_imshow(window_name: str, image: np.ndarray, outfile: Optional[str] = N
     """
     安全显示图像：GUI 不可用时可选落盘，避免异常中断。
     """
+    if image is None or not hasattr(image, "size") or image.size == 0:
+        print(f"[warn] Empty image for window '{window_name}', skip imshow.")
+        return
     try:
         cv2.imshow(window_name, image)
     except Exception:
         if outfile:
-            cv2.imwrite(outfile, image)
-            print(f"[info] GUI 不可用，已保存到: {outfile}")
+            try:
+                cv2.imwrite(outfile, image)
+                print(f"[info] GUI 不可用，已保存到: {outfile}")
+            except Exception as exc:
+                print(f"[warn] Failed to write image: {exc}")
 # endregion
 
 
@@ -115,7 +121,7 @@ def visualize_grid_and_path(
             cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2, cv2.LINE_AA
         )
 
-    cv2.imshow(win_name, vis)
+    _safe_imshow(win_name, vis, outfile)
 # endregion
 
 # region =====================  先放大图像,在放大后的图像上绘制点  =====================
@@ -153,6 +159,7 @@ def visualize_move(
     scale: int = 28,
     window: str = "move_viz",
     outfile: str = "viz_demo.png",
+    view_range: Optional[int] = None,
 ):
     """
     将grid网格放大显示,绘制风险热力图,人物点、安全可达目标点、敌人位置、敌人攻击范围、搜索中心、搜索半径、标识每个网格风险权重值
@@ -165,78 +172,138 @@ def visualize_move(
     :param scale: 网格放大倍数
     :param window：图像显示窗口的名称
     :param outfile：图像不能显示时，图像保存的名称
+    :param view_range: Optional radius (grid cells) around a_pos to display; None shows full grid.
     """
     H, W, _ = grid.shape
     enemies = core._parse_enemies(grid)
     risk = core._compute_risk(grid, enemies)
-    # 基底图：放大（保持像素块）
-    base = cv2.resize(grid, (W * scale, H * scale), interpolation=cv2.INTER_NEAREST)
+    risk_max = risk.max()
+
+    ax, ay = a_pos
+    view_x0 = 0
+    view_y0 = 0
+    view_x1 = W - 1
+    view_y1 = H - 1
+
+    if view_range is not None:
+        view_range = max(0, int(view_range))
+        view_x0 = max(0, ax - view_range)
+        view_y0 = max(0, ay - view_range)
+        view_x1 = min(W - 1, ax + view_range)
+        view_y1 = min(H - 1, ay + view_range)
+
+    view_w = view_x1 - view_x0 + 1
+    view_h = view_y1 - view_y0 + 1
+
+    # Limit visualization to a window around a_pos before scaling.
+    grid_view = grid[view_y0:view_y1 + 1, view_x0:view_x1 + 1]
+    base = cv2.resize(
+        grid_view,
+        (view_w * scale, view_h * scale),
+        interpolation=cv2.INTER_NEAREST,
+    )
 
     # 叠加风险热力图
-    if show_risk and risk.max() > 0:
-        rn = (risk.astype(np.float32) / risk.max() * 255.0).astype(np.uint8)
-        rn_big = cv2.resize(rn, (W * scale, H * scale), interpolation=cv2.INTER_NEAREST)
+    if show_risk and risk_max > 0:
+        risk_view = risk[view_y0:view_y1 + 1, view_x0:view_x1 + 1]
+        rn = (risk_view.astype(np.float32) / risk_max * 255.0).astype(np.uint8)
+        rn_big = cv2.resize(
+            rn,
+            (view_w * scale, view_h * scale),
+            interpolation=cv2.INTER_NEAREST,
+        )
         heat = cv2.applyColorMap(rn_big, cv2.COLORMAP_JET)
         vis = cv2.addWeighted(base, 0.55, heat, 0.45, 0.0)
     else:
         vis = base.copy()
 
-    # 画网格线
-    _draw_grid_lines(vis, W, H, scale, (180,180,180))
+    # 画网格线（可视化样式统一）
+    _draw_grid_lines(vis, view_w, view_h, scale, (180, 180, 180))
+
+    def _in_view(x: int, y: int) -> bool:
+        return view_x0 <= x <= view_x1 and view_y0 <= y <= view_y1
+
+    def _to_px(x: int, y: int) -> Tuple[int, int]:
+        return (
+            (x - view_x0) * scale + scale // 2,
+            (y - view_y0) * scale + scale // 2,
+        )
+
+    def _rect_to_view(
+        x0: int,
+        y0: int,
+        x1: int,
+        y1: int,
+    ) -> Optional[Tuple[Tuple[int, int], Tuple[int, int]]]:
+        ix0 = max(x0, view_x0)
+        iy0 = max(y0, view_y0)
+        ix1 = min(x1, view_x1)
+        iy1 = min(y1, view_y1)
+        if ix0 > ix1 or iy0 > iy1:
+            return None
+        tl = ((ix0 - view_x0) * scale, (iy0 - view_y0) * scale)
+        br = ((ix1 - view_x0) * scale + (scale - 1), (iy1 - view_y0) * scale + (scale - 1))
+        return tl, br
 
     # 绘制敌人 + “切比雪夫半径方框”
     for (xe, ye), r, w in enemies:
         color = (0, 0, 255) if w == 3 else (0, 255, 0)  # 红 or 绿
-        center_px = (xe * scale + scale // 2, ye * scale + scale // 2)
-        cv2.circle(vis, center_px, max(2, scale // 3), color, -1)
         # 切比雪夫半径 → 方形包围（像素对齐）
-        tl = (max(0, xe - r) * scale, max(0, ye - r) * scale)
-        br = (min(W - 1, xe + r) * scale + (scale - 1), min(H - 1, ye + r) * scale + (scale - 1))
-        cv2.rectangle(vis, tl, br, color, 2)
-        _draw_text_with_outline(
-            vis,
-            f"E{(int(xe), int(ye))}",
-            (xe * scale + 3, ye * scale + 14),
-        )
+        rect = _rect_to_view(xe - r, ye - r, xe + r, ye + r)
+        if rect:
+            cv2.rectangle(vis, rect[0], rect[1], color, 2)
+        if _in_view(xe, ye):
+            center_px = _to_px(xe, ye)
+            cv2.circle(vis, center_px, max(2, scale // 3), color, -1)
+            _draw_text_with_outline(
+                vis,
+                f"E{(int(xe), int(ye))}",
+                ((xe - view_x0) * scale + 3, (ye - view_y0) * scale + 14),
+            )
 
     # 绘制搜索中心点 + 搜索半径（方框）
     if search_center is None:
         search_center = a_pos
     cx, cy = search_center
     if search_radius is not None and search_radius >= 0:
-        tl = (max(0, cx - search_radius) * scale, max(0, cy - search_radius) * scale)
-        br = (min(W - 1, cx + search_radius) * scale + (scale - 1),
-              min(H - 1, cy + search_radius) * scale + (scale - 1))
-        cv2.rectangle(vis, tl, br, (255, 0, 255), 2)
-    search_center_b = (cx * scale + scale // 2, cy * scale + scale // 2)
-    cv2.circle(vis, search_center_b, max(3, scale // 3), (255, 255, 0), -1)
-    _draw_text_with_outline(
-        vis,
-        f"C{search_center}",
-        (cx * scale + 3, cy * scale + 14),
-    )
+        rect = _rect_to_view(
+            cx - search_radius,
+            cy - search_radius,
+            cx + search_radius,
+            cy + search_radius,
+        )
+        if rect:
+            cv2.rectangle(vis, rect[0], rect[1], (255, 0, 255), 2)
+    if _in_view(cx, cy):
+        search_center_b = _to_px(cx, cy)
+        cv2.circle(vis, search_center_b, max(3, scale // 3), (255, 255, 0), -1)
+        _draw_text_with_outline(
+            vis,
+            f"C{search_center}",
+            ((cx - view_x0) * scale + 3, (cy - view_y0) * scale + 14),
+        )
 
     # 绘制 人物a 点（青色）与 T目的地坐标（黄色）
-    ax, ay = a_pos
-    a_center = (ax * scale + scale // 2, ay * scale + scale // 2)
+    a_center = _to_px(ax, ay)
 
     if target is not None:
         tx, ty = target
-        t_center = (tx * scale + scale // 2, ty * scale + scale // 2)
-        cv2.circle(vis, t_center, max(3, scale // 3), (0, 255, 255), -1)
-        cv2.line(vis, a_center, t_center, (0, 0, 0), 3)
-        cv2.line(vis, a_center, t_center, (0, 255, 255), 2)
-        _draw_text_with_outline(
-            vis,
-            f"T{(int(tx), int(ty))}",
-            (tx * scale + 3, ty * scale + 14),
-            color=(0, 255, 255),
-        )
+        if _in_view(tx, ty):
+            t_center = _to_px(tx, ty)
+            cv2.circle(vis, t_center, max(3, scale // 3), (0, 255, 255), -1)
+            cv2.line(vis, a_center, t_center, (0, 0, 0), 3)
+            cv2.line(vis, a_center, t_center, (0, 255, 255), 2)
+            _draw_text_with_outline(
+                vis,
+                f"T{(int(tx), int(ty))}",
+                ((tx - view_x0) * scale + 3, (ty - view_y0) * scale + 14),
+                color=(0, 255, 255),
+            )
     cv2.circle(vis, a_center, max(2, scale // 4), (255, 255, 255), -1)
     _draw_text_with_outline(
         vis,
         f"P{a_pos}",
-        (ax * scale + 3, ay * scale + scale - 6),
+        ((ax - view_x0) * scale + 3, (ay - view_y0) * scale + scale - 6),
     )
 
     # 统一 GUI 显示出口，避免多处 try/except
