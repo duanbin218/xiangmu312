@@ -81,6 +81,8 @@ def visualize_grid_and_path(
     win_name: str = "A* path",
     cell_size: int = 30,
     outfile: Optional[str] = "viz_path.png",
+    center_pos: Optional[Tuple[int, int]] = None,
+    view_range: Optional[int] = None,
 ):
     """
     用 OpenCV 把小网格放大显示，并把路径画出来。
@@ -88,8 +90,28 @@ def visualize_grid_and_path(
     grid: HxWx3, uint8, BGR
     path: [(x,y), ...]，a_star_eight 的返回结果
     cell_size: 每个格子放大成多少像素
+    center_pos: 仅显示以该点为中心的局部网格（None 则显示全图）
+    view_range: 以 center_pos 为中心的半径（格子数），None 则显示全图
     """
-    vis, h, w = _make_grid_vis(grid, cell_size)
+    h, w, _ = grid.shape
+    use_view = center_pos is not None and view_range is not None
+    if use_view:
+        cx, cy = center_pos
+        vr = max(0, int(view_range))
+        view_x0 = max(0, cx - vr)
+        view_y0 = max(0, cy - vr)
+        view_x1 = min(w - 1, cx + vr)
+        view_y1 = min(h - 1, cy + vr)
+        if view_x0 > view_x1 or view_y0 > view_y1:
+            use_view = False
+    if not use_view:
+        view_x0 = 0
+        view_y0 = 0
+        view_x1 = w - 1
+        view_y1 = h - 1
+
+    grid_view = grid[view_y0:view_y1 + 1, view_x0:view_x1 + 1]
+    vis, h, w = _make_grid_vis(grid_view, cell_size)
 
     if path:
         # 画路径：红色线 + 点，起点绿，终点蓝
@@ -99,15 +121,18 @@ def visualize_grid_and_path(
 
         pts = []
         for (x, y) in path:
-            cx = int(x * cell_size + cell_size / 2)
-            cy = int(y * cell_size + cell_size / 2)
+            if x < view_x0 or x > view_x1 or y < view_y0 or y > view_y1:
+                continue
+            cx = int((x - view_x0) * cell_size + cell_size / 2)
+            cy = int((y - view_y0) * cell_size + cell_size / 2)
             pts.append((cx, cy))
 
-        for i in range(1, len(pts)):
-            cv2.line(vis, pts[i - 1], pts[i], path_color, 1)
+        if pts:
+            for i in range(1, len(pts)):
+                cv2.line(vis, pts[i - 1], pts[i], path_color, 1)
 
-        cv2.circle(vis, pts[0], radius=cell_size // 3, color=start_color, thickness=-1)
-        cv2.circle(vis, pts[-1], radius=cell_size // 3, color=end_color, thickness=-1)
+            cv2.circle(vis, pts[0], radius=cell_size // 3, color=start_color, thickness=-1)
+            cv2.circle(vis, pts[-1], radius=cell_size // 3, color=end_color, thickness=-1)
     else:
         cv2.putText(
             vis, "NO PATH", (10, 30),
@@ -125,16 +150,37 @@ def visualize_grid_and_point(
     win_name: str = "A* path",
     cell_size: int = 30,
     outfile: Optional[str] = "viz_point.png",
+    center_pos: Optional[Tuple[int, int]] = None,
+    view_range: Optional[int] = None,
 ):
-    vis, h, w = _make_grid_vis(grid, cell_size)
+    h, w, _ = grid.shape
+    use_view = center_pos is not None and view_range is not None
+    if use_view:
+        cx, cy = center_pos
+        vr = max(0, int(view_range))
+        view_x0 = max(0, cx - vr)
+        view_y0 = max(0, cy - vr)
+        view_x1 = min(w - 1, cx + vr)
+        view_y1 = min(h - 1, cy + vr)
+        if view_x0 > view_x1 or view_y0 > view_y1:
+            use_view = False
+    if not use_view:
+        view_x0 = 0
+        view_y0 = 0
+        view_x1 = w - 1
+        view_y1 = h - 1
+
+    grid_view = grid[view_y0:view_y1 + 1, view_x0:view_x1 + 1]
+    vis, h, w = _make_grid_vis(grid_view, cell_size)
 
     if point is not None:
         point_color = (0, 0, 255)  # 红
         gx, gy = point  # 这里假设 point=(x, y) = (列, 行)
-        # 把格子坐标转成放大后图像的像素坐标（格子中心）
-        cx = gx * cell_size + cell_size // 2
-        cy = gy * cell_size + cell_size // 2
-        cv2.circle(vis, (cx, cy), radius=cell_size // 3, color=point_color, thickness=-1)
+        if view_x0 <= gx <= view_x1 and view_y0 <= gy <= view_y1:
+            # 把格子坐标转成放大后图像的像素坐标（格子中心）
+            cx = (gx - view_x0) * cell_size + cell_size // 2
+            cy = (gy - view_y0) * cell_size + cell_size // 2
+            cv2.circle(vis, (cx, cy), radius=cell_size // 3, color=point_color, thickness=-1)
     else:
         print("传入的坐标点为None")
 
