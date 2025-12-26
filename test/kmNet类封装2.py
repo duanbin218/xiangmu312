@@ -29,7 +29,8 @@ runtime_started = False  # 避免重复初始化 kmNet / 键盘监听
 全局_event.set()
 
 # 新增：每个线程自己的“走路中断”事件
-打怪_stop_event = threading.Event()
+打怪_stop_event = threading.Event()   # 给监控线程标记
+打怪_stop_event1 = threading.Event()  # 给血量线程标记
 血量_stop_event = threading.Event()
 监控_stop_event = threading.Event()   # 监控要不要用看你需求
 
@@ -150,14 +151,20 @@ def 监控延时(毫秒: int):
 
 # ================== 统一控制类：鼠标/键盘 + 游戏坐标 ==================
 class 游戏控制器:
-    def __init__(self, km=kmNet, delay_func=None,
-                 圆心x=config.MAP_CENTER_X, 圆心y=config.MAP_CENTER_Y, 半径r=config.DEFAULT_CIRCLE_RADIUS):
+    def __init__(
+            self, km=kmNet, delay_func=None,
+            圆心x=config.MAP_CENTER_X,
+            圆心y=config.MAP_CENTER_Y,
+            半径r=config.DEFAULT_CIRCLE_RADIUS):
         if delay_func is None:
             raise ValueError("必须传入延时函数 delay_func，例如 打怪延时/血量延时/监控延时")
-
+        self.delay_func = delay_func
         self.kmNet = km
         self._delay = delay_func
         self.八方位点击坐标 = self._计算八方位点击坐标(圆心x, 圆心y, 半径r)
+
+    def __repr__(self):
+        return f"游戏控制器(delay_func={self.delay_func.__name__})"
 
     # ========= 基础延时 =========
     def 延时(self, 毫秒: int):

@@ -330,7 +330,7 @@ def _next_move_core(
                 best_key = key
                 best = (x, y)
 
-    print('局部安全点坐标(局部/当前坐标系):', best)
+    # print('局部安全点坐标(局部/当前坐标系):', best)
     return best
 
 
@@ -475,7 +475,7 @@ def next_move_a(
 
     # 映射回全图坐标
     global_best = (bx + px0, by + py0)
-    print('安全点坐标(全图坐标系):', global_best)
+    # print('安全点坐标(全图坐标系):', global_best)
     return global_best
 
 # endregion </计算出风险值最小的安全点>↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑
@@ -960,7 +960,7 @@ def a_star_eight(
     path_global = [(x + px0, y + py0) for (x, y) in path_local]
 
     # 调试输出一下 patch 信息和路径长度，方便你对比性能
-    print(f"a_star_eight: 使用局部 patch {subW}x{subH}, 路径长度={len(path_global)}")
+    # print(f"a_star_eight: 使用局部 patch {subW}x{subH}, 路径长度={len(path_global)}")
 
     return path_global
 

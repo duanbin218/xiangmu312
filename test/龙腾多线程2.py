@@ -1,25 +1,21 @@
-import threading
+import sys
+import time
 
 import cv2
-import sys
 from PyQt5 import uic
-from PyQt5.QtWidgets import QApplication, QMainWindow,QPushButton
-from PyQt5.QtCore import QThread, pyqtSignal,Qt, QEvent,pyqtSlot
+from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton
+from PyQt5.QtCore import QThread, pyqtSignal, Qt, QEvent
 from PyQt5.QtGui import QImage, QPixmap
-import heapq
-import numpy as np
-import time
 import traceback
 from 新大漠插件 import *
 import ai算法
 import ai_visual
 from kmNet类封装2 import *
-from 常量 import changliang as cl
+from changliang11 import changliang as cl
 import config
 import dm_utils  # OCR 通用工具，避免重复解析逻辑。
+from app.loot import LootFeature
 import 寻路
-
-
 
 init_runtime()
 
@@ -123,6 +119,8 @@ class WorkerThread(QThread):
             self.监控线程()
 
     def 监控线程(self):
+        cv2.namedWindow("demo_case")
+        cv2.moveWindow("demo_case", 1920, 0)
         while True:
 
             s = time.perf_counter()
@@ -137,24 +135,46 @@ class WorkerThread(QThread):
                 frame = self.map_img.copy()
                 frame = self.地图上绘制玩家点(frame, players)
                 人物x,人物y = player_pos
-                safe_point = ai算法.next_move_a((人物x,人物y),frame,(人物x,人物y),40,1)
+                safe_point = ai算法.next_move_a(
+                    (人物x,人物y),
+                    frame,
+                    (人物x,人物y),
+                    40,
+                    1,
+                    escape_mode="away"
+                )
                 if safe_point is not None:
                     ai_visual.visualize_move(
                         frame, (人物x, 人物y), safe_point,
-                        search_center=(人物x, 人物y), search_radius=30,
-                        show_risk=True, scale=5, window="demo_case",
-                        outfile="viz_demo.png"
+                        search_center=(人物x, 人物y), search_radius=40,
+                        show_risk=True, scale=7, window="demo_case",
+                        outfile="viz_demo.png",view_range=50
                     )
-                    path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 1, 1, 2, 1)
+                    cv2.waitKey(1)
+                    path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 1, 11, 0.001, 11)
                     if path is not None:
                         pause_all()
+                        print("监控线程抢占开始,首次安全点坐标:",safe_point)
+                        print("监控线程抢占开始,安全点路径:",path)
                         mark_walk_stopped(打怪_stop_event,血量_stop_event) # 暂停所有线程同时,给所有线程做个标记,恢复所有线程时,重置所有线程中的循环
-                        ret_path_list = self.沿路径控制人物行走_监控线程(path, False, False, 1, 1)
+                        寻路.walk_path(
+                            path,
+                            dm=self.大漠对象,
+                            get_pos=dm_utils.ocr_player_pos,
+                            controller=监控控制,
+                            bad_cells=bad_cells,
+                            end_threshold=1,
+                            reach_threshold=1,
+                            update_map_fn=寻路.update_map_fn,
+                            dynamic_repath=True,
+                            repath_radius=40,
+                        )
+                        print("监控线程抢占结束")
                         resume_all()
 
-            e = time.perf_counter()
-            t = e - s
-            print("找字用时:", t)
+            # e = time.perf_counter()
+            # t = e - s
+            # print("找字用时:", t)
             监控控制.延时(100)
 
     # 在地图上用特定颜色绘制怪物坐标点,这里设置的颜色值要和AI模块中的_parse_enemies()函数中设置的一致
@@ -233,7 +253,8 @@ class WorkerThread(QThread):
                 血量比例 = 当前血量/最大血量
                 if 0 < 血量比例 < 0.95:
                     pause_combat()  # 暂停打怪线程
-                    mark_walk_stopped(打怪_stop_event) # 暂停打怪线程同时做个标记,恢复打怪线程时通过这个标识重置打怪线程循环
+                    print("血量线程抢占开始")
+                    mark_walk_stopped(打怪_stop_event1) # 暂停打怪线程同时做个标记,恢复打怪线程时通过这个标识重置打怪线程循环
                     s = time.perf_counter()
 
                     # 找安全坐标点
@@ -270,11 +291,21 @@ class WorkerThread(QThread):
 
                         frame = self.更新地图_怪物点()
                         path = ai算法.a_star_eight(人物x, 人物y, bin_safe_point[0],bin_safe_point[1] ,frame,1,0,1,1,1)
-                        print('安全路径',path)
+                        print("血量线程安全坐标点:",bin_safe_point)
+                        print('血量线程安全路径',path)
 
                         # 围绕着宝宝或者人物坐标点移动到安全位置
                         if path is not None :
-                            ret_path_list = self.沿路径控制人物行走_血量线程(path, False,False, 0, 0)
+                            ret_path_list = 寻路.walk_path(
+                            path,
+                            dm=self.大漠对象,
+                            get_pos=dm_utils.ocr_player_pos,
+                            controller=血量控制,
+                            bad_cells=bad_cells,
+                            stop_event=(血量_stop_event,),
+                            end_threshold=1,
+                            reach_threshold=1,
+                        )
 
                             e = time.perf_counter()
                             t = e - s
@@ -285,9 +316,10 @@ class WorkerThread(QThread):
                             血量控制.键盘点击(60)
                             # 血量控制.随机延时(1400, 1600)
 
-                elif 0.95 <= 血量比例 <= 1:
+                elif 0.95 <= 血量比例 <= 1 and 打怪_event.is_set() != True:
+                    print("血量线程抢占结束")
                     resume_combat()  # 继续打怪线程
-                time.sleep(0.1)
+                血量控制.延时(10)
 
         except Exception as e:
             print(e)
@@ -298,21 +330,6 @@ class WorkerThread(QThread):
     def 捡物(self,x1,y1,x2,y2):
         try:
             s = time.perf_counter()
-
-            # max_yellow = np.array([35, 255, 255])
-            # mix_yellow = np.array([25, 179, 150])
-            #
-            # max_green = np.array([65, 255, 255])
-            # mix_green = np.array([55, 220, 150])
-            #
-            # max_blue = np.array([104, 210, 251])
-            # mix_blue = np.array([90, 109, 145])
-            #
-            # max_red1 = np.array([179, 255, 255])
-            # mix_red1 = np.array([170, 225, 150])
-            #
-            # max_red2 = np.array([10, 255, 255])
-            # mix_red2 = np.array([0, 225, 150])
 
             img_path = config.TEMP_CAPTURE_BMP
             self.大漠对象.Capture(x1,y1,x2,y2, img_path)
@@ -394,7 +411,6 @@ class WorkerThread(QThread):
                         物品屏幕y + off_y,
                     )
                     物品游戏坐标列表.add((物品名称,(物品游戏x,物品游戏y)))
-                # print('物品游戏坐标列表1111111111',物品游戏坐标列表)
 
             self.大漠对象.SetDisplayInput(config.DISPLAY_INPUT_SCREEN)
             # print('识字完成-------------------------------------------------------------------')
@@ -453,39 +469,52 @@ class WorkerThread(QThread):
                 return
             global bad_cells
             global last_clear_time
-            global wupin_list
             while True:
 
                 # 每隔CLEAR_INTERVAL时间,清空wupin_list记录已捡物品的集合
                 now = time.time()
-                if now - last_clear_time >= CLEAR_INTERVAL:
-                    if config.DEBUG_LOG:
-                        print("清空wupin_list之前", wupin_list)
-                    wupin_list.clear()
-                    if config.DEBUG_LOG:
-                        print("定时清空 wupin_list", wupin_list)
-                    last_clear_time = now
-
-                if 打怪_stop_event.is_set():      # "打怪_stop_event"为True,表示其他线程暂停过又恢复了打怪线程,那么检查宝宝是否打怪和检查周围是否有物品
+                # if now - last_clear_time >= CLEAR_INTERVAL:
+                #     if config.DEBUG_LOG:
+                #         print("清空wupin_list之前", wupin_list)
+                #     wupin_list.clear()
+                #     if config.DEBUG_LOG:
+                #         print("定时清空 wupin_list", wupin_list)
+                #     last_clear_time = now
+                if 打怪_stop_event.is_set():      # 从监控线程恢复,人物已经原理之前的位置了,不用检测宝宝是否在打怪以及地上是否有物品
                     打怪_stop_event.clear()
+
+                if 打怪_stop_event1.is_set():      # "打怪_stop_event1"为True,表示血量线程暂停过又恢复了打怪线程,那么检查宝宝是否打怪和检查周围是否有物品
+                    打怪_stop_event1.clear()
+                    print("从血量线程恢复,检测宝宝是否打怪")
                     self.fighting(150,119,1719,867)
-                    物品游戏坐标列表 = self.捡物(561, 113, 1429, 730)
+                    打怪控制.延时(1000)                     # 给物品找图时间(物品掉落延迟)
+                    物品游戏坐标列表 = LootFeature().run_loop(self.大漠对象, 164,117,1896,816,控制器=打怪控制)
                     if config.DEBUG_LOG:
-                        print("血量监测后,宝宝打死怪后物品列表:", 物品游戏坐标列表)
+                        print("从血量线程恢复,宝宝打死怪后物品列表:", 物品游戏坐标列表)
                     if 物品游戏坐标列表:
                         for 物品 in 物品游戏坐标列表:
-                            if 物品 not in wupin_list:
-                                if config.DEBUG_LOG:
-                                    print("血量监测后,宝宝打死怪后捡取物品", 物品[0])
-                                物品坐标x = 物品[1][0]
-                                物品坐标y = 物品[1][1]
-                                人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
-                                frame = self.更新地图_怪物点()
-                                path = ai算法.a_star_eight(人物x, 人物y, 物品坐标x, 物品坐标y, frame, 1, 0, 1, 1, 1)
-                                if config.DEBUG_LOG:
-                                    print('血量监测后,宝宝打死怪后捡物品寻路路径:', path)
-                                self.沿路径控制人物行走_打怪线程(path, False, False, 0, 1)
-                                wupin_list.add(物品)
+                            print("捡取物品中")
+                            物品坐标x = 物品[0]
+                            物品坐标y = 物品[1]
+                            人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
+                            frame = self.更新地图_怪物点()
+                            path = ai算法.a_star_eight(人物x, 人物y, 物品坐标x, 物品坐标y, frame, 1, 0, 0, 0.001, 0)
+                            if config.DEBUG_LOG:
+                                print('从血量线程恢复,宝宝打死怪后捡物品寻路路径:', path)
+                            寻路.walk_path(
+                                path,
+                                dm=self.大漠对象,
+                                get_pos=dm_utils.ocr_player_pos,
+                                controller=打怪控制,
+                                bad_cells=bad_cells,
+                                stop_event=(打怪_stop_event,血量_stop_event, 打怪_stop_event1),
+                                end_threshold=0,
+                                repath_interval=1,
+                            )
+                            if 打怪_stop_event.is_set() or 打怪_stop_event1.is_set():
+                                break
+                if 打怪_stop_event.is_set() or 打怪_stop_event1.is_set():
+                    continue
 
                 frame = self.map_img.copy()
                 人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
@@ -512,12 +541,25 @@ class WorkerThread(QThread):
                         print('最近怪:', name, 最近x, 最近y)
 
                     # A星寻路算法算出路线path
-                    path = ai算法.a_star_eight(人物x, 人物y, 最近x, 最近y,frame,1,1,1,1,1)
+                    path = ai算法.a_star_eight(人物x, 人物y, 最近x, 最近y,frame,1,1,11,0.001,11)
                     if config.DEBUG_LOG:
                         print('寻路路径', path)
 
                     # 沿着寻路路径开始寻路
-                    ret_path_list = self.沿路径控制人物行走_打怪线程(path,True,False,1,0)
+                    ret_path_list = 寻路.walk_path(
+                                    path,
+                                    dm=self.大漠对象,
+                                    get_pos=dm_utils.ocr_player_pos,
+                                    controller=打怪控制,
+                                    bad_cells=bad_cells,
+                                    stop_event=(打怪_stop_event,血量_stop_event,打怪_stop_event1),
+                                    small_area_checker=寻路.small_area_checker,
+                                    end_threshold=1,
+                                    reach_threshold=1,
+                                )
+
+                    if 打怪_stop_event.is_set() or 打怪_stop_event1.is_set():
+                        continue
 
                     打怪控制.随机延时(400, 600)
                     # F3隐身,让怪物不要攻击自己
@@ -535,50 +577,77 @@ class WorkerThread(QThread):
                         if 'safe_point' not in locals():
                             raise ValueError("宝宝在身边未攻击次数")
                         path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 1, 1, 1, 1)
-                        self.沿路径控制人物行走_打怪线程(path, False, False, 1, 1)
+                        寻路.walk_path(
+                            path,
+                            dm=self.大漠对象,
+                            get_pos=dm_utils.ocr_player_pos,
+                            controller=打怪控制,
+                            bad_cells=bad_cells,
+                            stop_event=(打怪_stop_event, 血量_stop_event, 打怪_stop_event1),
+                            end_threshold = 1,
+                            repath_interval = 1,
+                        )
+
+                        if 打怪_stop_event.is_set() or 打怪_stop_event1.is_set():
+                            continue
 
                     # 宝宝不在人物一格范围内就召唤
                     self.召唤宝宝()
 
-                    物品游戏坐标列表 = self.捡物(248,88,1607,864)
+                    物品游戏坐标列表 = LootFeature().run_loop(self.大漠对象, 164,117,1896,816,控制器=打怪控制)
                     if config.DEBUG_LOG:
                         print("召唤宝宝后物品列表:", 物品游戏坐标列表)
                     if 物品游戏坐标列表:
                         for 物品 in 物品游戏坐标列表:
+                            物品坐标x = 物品[0]
+                            物品坐标y = 物品[1]
+                            人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
+                            frame = self.更新地图_怪物点()
+                            path = ai算法.a_star_eight(人物x, 人物y, 物品坐标x, 物品坐标y, frame, 1, 0, 0, 0.001, 0)
                             if config.DEBUG_LOG:
-                                print("召唤宝宝后捡取物品", 物品[0])
-                            if 物品 not in wupin_list:
-                                物品坐标x = 物品[1][0]
-                                物品坐标y = 物品[1][1]
-                                人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
-                                frame = self.更新地图_怪物点()
-                                path = ai算法.a_star_eight(人物x, 人物y, 物品坐标x, 物品坐标y, frame, 1, 0, 1, 1, 1)
-                                if config.DEBUG_LOG:
-                                    print('召唤宝宝后捡物品寻路路径:', path)
-                                self.沿路径控制人物行走_打怪线程(path, False, False, 0, 1)
-                                wupin_list.add(物品)
-
-                    if config.DEBUG_LOG:
-                        print('马上进入宝宝打怪中')
+                                print('召唤宝宝后捡物品寻路路径:', path)
+                            寻路.walk_path(
+                                path,
+                                dm=self.大漠对象,
+                                get_pos=dm_utils.ocr_player_pos,
+                                controller=打怪控制,
+                                bad_cells=bad_cells,
+                                stop_event=(打怪_stop_event, 血量_stop_event,打怪_stop_event1),
+                                end_threshold=0,
+                                repath_interval=1,
+                            )
+                            if 打怪_stop_event.is_set() or 打怪_stop_event1.is_set():
+                                continue
+                        if 打怪_stop_event.is_set() or 打怪_stop_event1.is_set():
+                            continue
                     self.fighting(627, 106, 1300, 712)
-
+                    打怪控制.延时(1000)  # 给物品找图时间(物品掉落延迟)
                     # 打死怪后判断周围有没有装备
-                    物品游戏坐标列表 = self.捡物(561, 113, 1429, 730)
+                    物品游戏坐标列表 = LootFeature().run_loop(self.大漠对象, 164,117,1896,816,控制器=打怪控制)
                     if config.DEBUG_LOG:
                         print("宝宝打死怪后物品列表:", 物品游戏坐标列表)
                     if 物品游戏坐标列表:
                         for 物品 in 物品游戏坐标列表:
-                            if 物品 not in wupin_list:
-                                print("宝宝打死怪后捡取物品", 物品[0])
-                                物品坐标x = 物品[1][0]
-                                物品坐标y = 物品[1][1]
-                                人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
-                                frame = self.更新地图_怪物点()
-                                path = ai算法.a_star_eight(人物x, 人物y, 物品坐标x, 物品坐标y, frame, 1, 0, 1, 1, 1)
-                                print('宝宝打死怪后捡物品寻路路径:', path)
-                                self.沿路径控制人物行走_打怪线程(path, False, False, 0, 1)
-                                wupin_list.add(物品)
-
+                            物品坐标x = 物品[0]
+                            物品坐标y = 物品[1]
+                            人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
+                            frame = self.更新地图_怪物点()
+                            path = ai算法.a_star_eight(人物x, 人物y, 物品坐标x, 物品坐标y, frame, 1, 0, 0, 0.001, 0)
+                            print('宝宝打死怪后捡物品寻路路径:', path)
+                            寻路.walk_path(
+                                path,
+                                dm=self.大漠对象,
+                                get_pos=dm_utils.ocr_player_pos,
+                                controller=打怪控制,
+                                bad_cells=bad_cells,
+                                stop_event=(打怪_stop_event, 血量_stop_event, 打怪_stop_event1),
+                                end_threshold=0,
+                                repath_interval=1,
+                            )
+                            if 打怪_stop_event.is_set() or 打怪_stop_event1.is_set():
+                                continue
+                        if 打怪_stop_event.is_set() or 打怪_stop_event1.is_set():
+                            continue
                 # 找图发现周围没有怪后的操作
                 else:
                     人物x,人物y = dm_utils.ocr_player_pos(self.大漠对象)
@@ -586,11 +655,19 @@ class WorkerThread(QThread):
                     point = [(18,141),(236,60),(72,357),(265,309)]
                     i = random.randint(0, 3)
                     frame = self.更新地图_怪物点()
-                    path = ai算法.a_star_eight(人物x, 人物y, point[i][0], point[i][1], frame, 1, 1, 1, 1, 1)
+                    path = ai算法.a_star_eight(人物x, 人物y, point[i][0], point[i][1], frame, 1, 1, 11, 0.001, 11)
                     print('周围没有怪了,前往下一个打怪点\n',path)
-                    self.沿路径控制人物行走_打怪线程(path,True,True,1,1)
-
-                打怪控制.延时(100)
+                    寻路.walk_path(
+                        path,
+                        dm=self.大漠对象,
+                        get_pos=dm_utils.ocr_player_pos,
+                        controller=打怪控制,
+                        bad_cells=bad_cells,
+                        stop_event=(打怪_stop_event, 血量_stop_event, 打怪_stop_event1),
+                        small_area_checker=寻路.small_area_checker,
+                        big_area_checker=寻路.big_area_checker,
+                    )
+                打怪控制.延时(10)
             print('退出打怪循环')
             cv2.destroyAllWindows()
         except Exception as e:
@@ -604,6 +681,9 @@ class WorkerThread(QThread):
         查找宝宝计次 = 0
         宝宝周围未找到怪物计次 = 0
         for i in range(5000):
+            if 打怪_stop_event.is_set() or 打怪_stop_event1.is_set():
+                print('恢复打怪线程,退出宝宝检测是否战斗中循环')
+                break
             宝宝列表 = list()
             宝宝 = list()
             宝宝攻击范围 = [None, None, None, None]  # 0,1是左上角坐标.2,3是右下角坐标
@@ -678,6 +758,8 @@ class WorkerThread(QThread):
     def 召唤宝宝(self):
         print('召唤宝宝')
         for i in range(3):
+            if 打怪_stop_event.is_set() or 打怪_stop_event1.is_set():
+                break
             返回_找图AIEx = self.大漠对象.AiFindPicEx(842,358, 1082,519, config.PET_PIC_PATH, config.PET_PIC_SIM, 0)
             # 返回_找图AIEx = self.大漠对象.AiFindPicEx(842,358, 1082,519, r"./pic/guaiwu/单机_宝宝.bmp", 0.6, 0)
             if 返回_找图AIEx == '':
@@ -695,7 +777,14 @@ class WorkerThread(QThread):
             frame = self.更新地图_怪物点()
             safe_point = ai算法.next_move_a((人物x, 人物y), frame, (人物x, 人物y), None,1)
             path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 1, 1, 1, 1)
-            self.沿路径控制人物行走_打怪线程(path, False, False, 1, 0)
+            寻路.walk_path(
+                path,
+                dm=self.大漠对象,
+                get_pos=dm_utils.ocr_player_pos,
+                controller=打怪控制,
+                bad_cells=bad_cells,
+                stop_event=(打怪_stop_event, 血量_stop_event)
+            )
             self.召唤宝宝()
 
     def 押镖(self):
@@ -1230,47 +1319,65 @@ class MyWindow(QMainWindow):
     def ceshi(self):
         try:
 
-            dms_a[0].UseDict(2)
-            s1 = time.perf_counter()
-            frame,players = self.更新地图_玩家点()
-            e1 = time.perf_counter()
-            print("更新地图耗时:",e1-s1)
+            # dms_a[0].UseDict(2)
+            # s1 = time.perf_counter()
+            # frame,players = self.更新地图_玩家点()
+            # e1 = time.perf_counter()
+            # print("更新地图耗时:",e1-s1)
+            # 人物x, 人物y = dm_utils.ocr_player_pos(dms_a[0])
+            #
+            # s2 = time.perf_counter()
+            # safe_point = ai算法.next_move_a((人物x, 人物y), frame, (人物x, 人物y), search_radius=25, selection_method=1,players=players,escape_mode='away')
+            # e2 = time.perf_counter()
+            # print("计算safe_point耗时:",e2-s2)
+            # ai_visual.visualize_move(
+            #     frame, (人物x, 人物y), safe_point,
+            #     search_center=(人物x, 人物y), search_radius=25,
+            #     show_risk=True, scale=15, window="demo_case",
+            #     outfile="viz_demo.png"
+            # )
+            # cv2.waitKey(1)
+            # if safe_point is not None:
+            #     s3 = time.perf_counter()
+            #     path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 0, 0, 0.001, 0)
+            #     e3 = time.perf_counter()
+            #     print("计算path耗时:", e3 - s3)
+            #
+            #     print("a星寻路路径点",path)
+            #     if path is not None:
+            #         ai_visual.visualize_grid_and_path(frame, path=path, win_name="path", cell_size=15)
+            #         ret_path_list = 寻路.walk_path(
+            #             path,
+            #             dm=dms_a[0],
+            #             get_pos=dm_utils.ocr_player_pos,
+            #             controller=监控控制,
+            #             bad_cells=bad_cells
+            #         )
+            #         print("实际移动路径点",ret_path_list)
+            #         ai_visual.visualize_grid_and_path(frame, path=ret_path_list, win_name="ret_path_list", cell_size=15)
+
+            #
             人物x, 人物y = dm_utils.ocr_player_pos(dms_a[0])
-
-            s2 = time.perf_counter()
-            safe_point = ai算法.next_move_a((人物x, 人物y), frame, (人物x, 人物y), search_radius=25, selection_method=1,players=players,escape_mode='away')
-            e2 = time.perf_counter()
-            print("计算safe_point耗时:",e2-s2)
+            img = 寻路.更新地图_怪物点(dms_a[0],监控控制)
+            a = (人物x, 人物y)
+            t = (人物x, 人物y)
             ai_visual.visualize_move(
-                frame, (人物x, 人物y), safe_point,
-                search_center=(人物x, 人物y), search_radius=25,
-                show_risk=True, scale=15, window="demo_case",
-                outfile="viz_demo.png"
+                img,
+                a,
+                t,
+                scale = 10,
+                view_range=25
             )
-            cv2.waitKey(1)
-            if safe_point is not None:
-                s3 = time.perf_counter()
-                path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 0, 0, 0.001, 0)
-                e3 = time.perf_counter()
-                print("计算path耗时:", e3 - s3)
 
-                print("a星寻路路径点",path)
-                if path is not None:
-                    ai_visual.visualize_grid_and_path(frame, path=path, win_name="path", cell_size=15)
-                    ret_path_list = 寻路.walk_path(
-                        path,
-                        dm=dms_a[0],
-                        get_pos=dm_utils.ocr_player_pos,
-                        controller=监控控制,
-                        bad_cells=bad_cells
-                    )
-                    print("实际移动路径点",ret_path_list)
-                    ai_visual.visualize_grid_and_path(frame, path=ret_path_list, win_name="ret_path_list", cell_size=15)
+
+        #     time.sleep(3)
+        #     LootFeature().run_loop(dms_a[0], 164,117,1896,816,控制器=监控控制)
+
 
         except Exception as e:
             print(repr(e))  # 输出异常的类型
             traceback.print_exc()
-        pass
+
 
     def ceshi2(self):
         try:
@@ -1290,7 +1397,8 @@ class MyWindow(QMainWindow):
                 frame, (人物x, 人物y), safe_point,
                 search_center=(人物x, 人物y), search_radius=25,
                 show_risk=True, scale=15, window="demo_case",
-                outfile="viz_demo.png"
+                outfile="viz_demo.png",
+                view_range=25
             )
             cv2.waitKey(1)
             if safe_point is not None:
@@ -1301,10 +1409,10 @@ class MyWindow(QMainWindow):
 
                 print("a星寻路路径点",path)
                 if path is not None:
-                    ai_visual.visualize_grid_and_path(frame, path=path, win_name="path", cell_size=15)
+                    ai_visual.visualize_grid_and_path(frame, path=path, win_name="path", cell_size=15, center_pos=(人物x, 人物y),view_range=25)
                     ret_path_list = self.沿路径控制人物行走(path, False, False, 0, 0)
                     print("实际移动路径点",ret_path_list)
-                    ai_visual.visualize_grid_and_path(frame, path=ret_path_list, win_name="ret_path_list", cell_size=15)
+                    ai_visual.visualize_grid_and_path(frame, path=ret_path_list, win_name="ret_path_list", cell_size=15,center_pos=(人物x, 人物y),view_range=25)
 
         except Exception as e:
             print(repr(e))  # 输出异常的类型

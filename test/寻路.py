@@ -1,5 +1,6 @@
 import time
 import traceback
+from threading import Event
 from typing import Callable, List, Optional, Tuple, Union, Any
 from public import *
 import ai算法
@@ -113,11 +114,8 @@ def update_map_fn(dm: object,controller: object):
     )
     if 玩家坐标列表:
         print("玩家坐标列表", 玩家坐标列表)
-        frame = 地图上绘制玩家点(map_img, 玩家坐标列表)
-    return frame, 玩家坐标列表
-
-
-
+        map_img = 地图上绘制玩家点(map_img, 玩家坐标列表)
+    return map_img, 玩家坐标列表
 
 
 def _nearest_index_along_path(
@@ -138,6 +136,7 @@ def _nearest_index_along_path(
             best_i = i
     return best_i, best_d
 
+
 def walk_path(
     path: List[tuple],  # 规划好的路径点列表（游戏坐标/格子坐标），例如 [(x1,y1),(x2,y2)...]
     *,  # 强制后续参数使用“关键字传参”，避免不同线程/调用方位置传参造成混淆
@@ -145,7 +144,7 @@ def walk_path(
     get_pos: Callable[[object,Union[None, tuple]], tuple],  # 获取人物当前坐标的回调函数；需返回 (x, y)，识别失败返回 (-1, -1)
     controller,  # 行走控制器：封装“判断方位/鼠标按下抬起/左键点方向/延时”等具体操作实现
     bad_cells: set,  # 共享的“坏格子/禁走点”集合；本函数会在退出时清空，便于上层下一次寻路复用
-    stop_event=None,  # 可选：threading.Event；置位后立即中断行走并返回已走过的实际路径点
+    stop_event: Union[Event, tuple[Event, ...], None] = None,  # 接收 Event 或者元组，或者 None
     small_area_checker: Optional[Callable[[object], bool]] = None,  # 可选：小范围找怪/风险检测；返回 True 时提前退出
     big_area_checker: Optional[Callable[[object], bool]] = None,  # 可选：大范围找怪/风险检测；返回 True 时提前退出
     update_map_fn: Optional[Callable[[object,object], Tuple[Any, List[tuple]]]] = None,  # 可选：刷新地图与玩家点（用于动态重寻路）
@@ -157,7 +156,7 @@ def walk_path(
     repath_interval: float = 0.5,  # 动态重寻路最小间隔（秒）；避免过于频繁地刷新/重算
     repath_radius: Optional[int] = None,  # 动态重寻路 safe_point 的搜索半径（格子）；None 则使用配置默认值
     repath_selection_method: Optional[int] = None,  # 动态重寻路 safe_point 的选择策略；None 则使用配置默认值
-    a_star_kwargs: Optional[dict] = None,  # 动态重寻路时传给 AI.a_star_eight 的参数（foot_len/safety_weight 等）
+    a_star_kwargs: Optional[dict] = None,  # 动态重寻路时传给 ai算法.a_star_eight 的参数（foot_len/safety_weight 等）
 ):
     """
     统一的沿路径行走逻辑。允许注入坐标获取、控制器、地图更新与终止事件，便于多线程复用。
@@ -201,13 +200,22 @@ def walk_path(
     last_repath_time = 0.0  # 上一次执行动态重寻路的时间戳
     strict_end = end_threshold == 0  # end_threshold==0 表示“严格到点”：必须走到最后一个格子
 
-    print("开始寻路")  # 日志：开始执行 walk_path
+    print(f"{controller}开始寻路")  # 日志：开始执行 walk_path
     try:  # 主循环包一层 try，保证异常时也会释放按键/鼠标
         while True:  # 一直走到终点/提前退出条件满足/卡住为止
-            if stop_event is not None and stop_event.is_set():  # 外部请求中断（多线程安全退出）
-                print("收到 stop_event 中断信号, 退出沿路径控制人物行走")  # 日志：收到停止信号
-                bad_cells.clear()  # 清空坏格子集合，避免污染下一次寻路
-                return road_list  # 返回已走过的实际路径点，便于上层做可视化/纠错
+            # if stop_event is not None and stop_event.is_set():  # 外部请求中断（多线程安全退出）
+            #     print("收到 stop_event 中断信号, 退出沿路径控制人物行走")  # 日志：收到停止信号
+            #     bad_cells.clear()  # 清空坏格子集合，避免污染下一次寻路
+            #     return road_list  # 返回已走过的实际路径点，便于上层做可视化/纠错
+
+            # print("鼠标寻路中")
+
+            if stop_event is not None:
+                for ev in stop_event:
+                    if ev is not None and ev.is_set():
+                        print(f"收到 {controller} 中断信号, 退出沿路径控制人物行走")  # 日志：收到停止信号
+                        bad_cells.clear()  # 清空坏格子集合，避免污染下一次寻路
+                        return road_list  # 返回已走过的实际路径点，便于上层做可视化/纠错
 
             if small_area_checker and small_area_checker(dm):  # 小范围发现怪物/威胁（由调用方定义检测逻辑）
                 bad_cells.clear()  # 退出前清理共享状态
@@ -229,7 +237,7 @@ def walk_path(
                 if now - last_repath_time >= repath_interval:  # 到达重算间隔才执行一次重算
                     last_repath_time = now  # 更新“上次重算时间”
                     frame, players = update_map_fn(dm,controller)  # 刷新地图，并识别玩家点（用于避让/逃离）`````````````````````````
-                    new_safe = AI.next_move_a(  # 基于当前局势计算一个“更安全”的临时目标点
+                    new_safe = ai算法.next_move_a(  # 基于当前局势计算一个“更安全”的临时目标点
                         (人物x, 人物y),  # 当前人物位置
                         frame,  # 当前地图/风险栅格（含玩家/怪物等信息）
                         (人物x, 人物y),  # 搜索中心（通常就是当前位置）
@@ -238,11 +246,11 @@ def walk_path(
                         players=players,  # 传入玩家点列表，AI 可据此躲人
                         escape_mode="away",  # 逃离模式：倾向于“远离”威胁源
                     )  # 结束 next_move_a 调用
-
+                    print("重算后的坐标",new_safe)
                     if new_safe is not None:  # 找到了新的安全点
                         diff = max(abs(new_safe[0] - current_goal[0]), abs(new_safe[1] - current_goal[1]))  # 新旧目标差距
                         if diff >= 3:  # 变化太小就不重算，避免抖动（目标频繁变动）
-                            new_path = AI.a_star_eight(  # 从当前位置到新安全点重新跑一遍 A*，得到新路径
+                            new_path = ai算法.a_star_eight(  # 从当前位置到新安全点重新跑一遍 A*，得到新路径
                                 start_x=人物x,  # A* 起点 x
                                 start_y=人物y,  # A* 起点 y
                                 end_x=new_safe[0],  # A* 终点 x（安全点）
@@ -259,8 +267,8 @@ def walk_path(
                                 last_idx = 0  # 同步重置 last_idx，避免误判“无进展”
                                 last_dist_to_next = None  # 清空距离历史，重新开始进展判断
                                 last_progress_time = time.time()  # 重置进展时间，避免立刻触发卡点
+                                print("终点更新为:",end_x,end_y)
                                 continue  # 进入下一轮循环，用新路径驱动行走
-
             if max(abs(人物x - end_x), abs(人物y - end_y)) <= end_threshold:  # 已经到达（或足够接近）终点
                 if right_down:  # 如果正在按住右键持续走
                     controller.right_up()  # 先松开右键，避免人物继续走偏
@@ -282,6 +290,7 @@ def walk_path(
                 else:  # 否则说明“路径走完了但人还没到”，属于异常/卡点/地图变化
                     if right_down:  # 为安全起见先松开右键
                         controller.right_up()  # 松开右键
+                    print(f"{controller}结束寻路1")
                     return road_list  # 提前返回，让上层重新规划路径
 
             if idx >= len(path) - 1:  # idx 已经在末尾（或超出）时，保证还能取到“当前/下一点”
@@ -310,6 +319,7 @@ def walk_path(
             elif now - last_progress_time > stuck_timeout:  # 长时间没进展：认为卡住/被挡
                 if right_down:  # 若右键按住中
                     controller.right_up()  # 先松开右键，避免持续走造成更大偏差
+                print(f"{controller}结束寻路2")
                 return road_list  # 提前返回，让上层决定重算/换策略
 
             直线段 = False  # 标记：当前位置附近是否属于“直线行走段”
@@ -341,6 +351,7 @@ def walk_path(
             controller.延时(sleep_interval)  # 每步延时：让操作节奏更像人，也降低 CPU/识别压力
 
         bad_cells.clear()  # 正常结束时同样清理坏格子集合
+        print(f"{controller}结束寻路")
         return road_list  # 返回“实际走过的点”，可用于可视化对比 path 与实际偏差
     except Exception as e:  # 捕获异常避免线程直接崩溃
         # 记录异常，方便排查

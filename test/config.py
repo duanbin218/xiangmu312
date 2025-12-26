@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
 # Centralized resource/config values to avoid drift across threads.
+import os
+
+# 获取当前工作目录
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 DEBUG_LOG = True  # 调试输出开关，默认保持现有打印行为
 
 MONSTER_LIST_PATH = "./pic/guaiwu/longteng.txt"
@@ -31,7 +36,9 @@ DICT_NUM_PATH = "./字库/数字.txt"
 DICT_SYS_PATH = "./字库/系统字库 - 副本.txt"
 DICT_PLAYER_PATH = "./字库/玩家字库.txt"
 
-MAP_IMAGE_PATH = "xinrenditu.bmp"
+# MAP_IMAGE_PATH = os.path.join(BASE_DIR, "resource", "img", "binary_map", "xinrenzhijia.bmp")
+MAP_IMAGE_PATH = os.path.join(BASE_DIR, "resource", "img", "binary_map", "sanrenzhijia.bmp")
+# MAP_IMAGE_PATH = os.path.join(BASE_DIR, "resource", "img", "binary_map", "mengzhong.bmp")
 
 # kmNet connection settings (init_runtime defaults).
 KMNET_IP = "192.168.2.188"
@@ -95,5 +102,5 @@ PLAYER_FIND_COLOR = "ffffff-000000"
 ENEMY_COLOR_S = (19, 19, 255)   # 高危怪：半径/权重更大
 ENEMY_COLOR_A = (7, 2, 254)     # 中危怪
 ENEMY_COLOR_B = (7, 2, 128)     # 低危怪（预留）
-PLAYER_COLOR = (20, 30, 1)      # 玩家点颜色，用于避让/风险计算
+PLAYER_COLOR = (35, 30, 1)      # 玩家点颜色，用于避让/风险计算
 PET_COLOR = (0, 0, 100)         # 宝宝/宠物标记
