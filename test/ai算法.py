@@ -829,9 +829,9 @@ def a_star_eight(
     img_path,                                    # np.ndarray, HxWx3, uint8, BGR（整图）
     foot_len,                                    # 步长（格子数，>=1）
     endpoint_deviation,                          # 终点允许误差（切比雪夫）
-    safety_radius,                               # 安全半径：障碍影响范围
-    safety_weight,                               # 安全权重：越大越远离障碍/敌人（>=0）
-    close_penalty_distance,                      # 强惩罚区半径：近距离额外加罚
+    safety_radius = 0,                               # 安全半径：障碍影响范围
+    safety_weight = 0,                               # 安全权重：越大越远离障碍/敌人（>=0）
+    close_penalty_distance = 0,                      # 强惩罚区半径：近距离额外加罚
     *,
     use_local: bool = True,                      # 是否启用局部裁剪
     local_margin: int = 10,                      # 起终点两边各扩多少格（基础余量）

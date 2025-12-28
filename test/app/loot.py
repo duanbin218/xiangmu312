@@ -43,8 +43,9 @@ class LootFeature:
 
             # 排除掉指定矩形区域
             exclusion_mask1 = self._exclude_region_from_mask(hsv, 0,352,1920,378)
-            exclusion_mask2 = self._exclude_region_from_mask(hsv, 0, 352, 1920, 378)
-            hsv = cv2.bitwise_and(hsv, hsv, mask=exclusion_mask1)
+            exclusion_mask2 = self._exclude_region_from_mask(hsv, 4,253,1918,274)
+            exclusion_mask = cv2.bitwise_or(exclusion_mask1, exclusion_mask2)
+            hsv = cv2.bitwise_and(hsv, hsv, mask=exclusion_mask)
 
             mask_yellow = cv2.inRange(hsv, cl.mix_yellow, cl.max_yellow)
             mask_green = cv2.inRange(hsv, cl.mix_green, cl.max_green)

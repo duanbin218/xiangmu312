@@ -12,3 +12,9 @@ class Parameter:
             "safety_weight": 0.001,
             "close_penalty_distance": 0
         }
+
+class Npc:
+    MengZhong = {
+        "sale":(327,320)
+
+    }

@@ -35,10 +35,11 @@ MONSTER_LIST_SIM = 0.82  # 怪物列表找图相似度阈值（含宝宝）
 DICT_NUM_PATH = "./字库/数字.txt"
 DICT_SYS_PATH = "./字库/系统字库 - 副本.txt"
 DICT_PLAYER_PATH = "./字库/玩家字库.txt"
+被发现字库 = "./字库/被发现.txt"
 
 # MAP_IMAGE_PATH = os.path.join(BASE_DIR, "resource", "img", "binary_map", "xinrenzhijia.bmp")
-MAP_IMAGE_PATH = os.path.join(BASE_DIR, "resource", "img", "binary_map", "sanrenzhijia.bmp")
-# MAP_IMAGE_PATH = os.path.join(BASE_DIR, "resource", "img", "binary_map", "mengzhong.bmp")
+# MAP_IMAGE_PATH = os.path.join(BASE_DIR, "resource", "img", "binary_map", "sanrenzhijia.bmp")
+MAP_IMAGE_PATH = os.path.join(BASE_DIR, "resource", "img", "binary_map", "mengzhong.bmp")
 
 # kmNet connection settings (init_runtime defaults).
 KMNET_IP = "192.168.2.188"
@@ -102,5 +103,9 @@ PLAYER_FIND_COLOR = "ffffff-000000"
 ENEMY_COLOR_S = (19, 19, 255)   # 高危怪：半径/权重更大
 ENEMY_COLOR_A = (7, 2, 254)     # 中危怪
 ENEMY_COLOR_B = (7, 2, 128)     # 低危怪（预留）
-PLAYER_COLOR = (35, 30, 1)      # 玩家点颜色，用于避让/风险计算
+PLAYER_COLOR = (25, 30, 1)      # 玩家点颜色，用于避让/风险计算
 PET_COLOR = (0, 0, 100)         # 宝宝/宠物标记
+
+# 状态检查
+整理区域 = (224,292,290,323,"./resource/img/状态图片/整理.bmp",0.95,0)
+背包状态区域 = (280,261,329,328,"./resource/img/状态图片/背包状态.bmp",0.95,0)

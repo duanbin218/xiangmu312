@@ -7,7 +7,7 @@ import ai算法
 import config
 import cv2
 import dm_utils
-
+import ai_visual
 
 def 地图上绘制怪物点(img: Any, master_location: list):
     # 地图上绘制危险级别 S 的怪
@@ -106,14 +106,14 @@ def 地图上绘制玩家点(img,玩家坐标列表:list):
     return img
 
 
-def update_map_fn(dm: object,controller: object):
+def update_map_fn(dm: object,controller: object):             # 获取坐标后, 更新地图
     map_img = cv2.imread(config.MAP_IMAGE_PATH)
     玩家坐标列表 = dm_utils.scan_player(
         dm,
         controller.屏幕坐标转游戏坐标,
     )
     if 玩家坐标列表:
-        print("玩家坐标列表", 玩家坐标列表)
+        # print("玩家坐标列表123", 玩家坐标列表)
         map_img = 地图上绘制玩家点(map_img, 玩家坐标列表)
     return map_img, 玩家坐标列表
 
@@ -137,6 +137,20 @@ def _nearest_index_along_path(
     return best_i, best_d
 
 
+def _has_new_players(
+    prev_players: List[tuple], curr_players: List[tuple], near_threshold: int = 3
+) -> bool:
+    if not prev_players or not curr_players:
+        return False
+    for (cx, cy) in curr_players:
+        if all(
+            max(abs(cx - px), abs(cy - py)) > near_threshold
+            for (px, py) in prev_players
+        ):
+            return True
+    return False
+
+
 def walk_path(
     path: List[tuple],  # 规划好的路径点列表（游戏坐标/格子坐标），例如 [(x1,y1),(x2,y2)...]
     *,  # 强制后续参数使用“关键字传参”，避免不同线程/调用方位置传参造成混淆
@@ -157,6 +171,7 @@ def walk_path(
     repath_radius: Optional[int] = None,  # 动态重寻路 safe_point 的搜索半径（格子）；None 则使用配置默认值
     repath_selection_method: Optional[int] = None,  # 动态重寻路 safe_point 的选择策略；None 则使用配置默认值
     a_star_kwargs: Optional[dict] = None,  # 动态重寻路时传给 ai算法.a_star_eight 的参数（foot_len/safety_weight 等）
+    right_only: bool = False,  # 为 True 时全程仅用右键移动；为 False 时允许左键+右键组合
 ):
     """
     统一的沿路径行走逻辑。允许注入坐标获取、控制器、地图更新与终止事件，便于多线程复用。
@@ -197,6 +212,8 @@ def walk_path(
     last_progress_time = time.time()  # 上一次确认“有进展”的时间戳（用于卡住检测）
     stuck_timeout = 4.0  # 卡住超时阈值：超过该时间仍无进展则认为卡点，提前返回
     current_goal = (end_x, end_y)  # 记录当前目标终点（动态重寻路时用于判断目标是否变化）
+    last_safe_with_players = None  # 记录上一次检测到玩家后的安全点
+    last_players = None  # 记录上一次检测到的玩家坐标列表
     last_repath_time = 0.0  # 上一次执行动态重寻路的时间戳
     strict_end = end_threshold == 0  # end_threshold==0 表示“严格到点”：必须走到最后一个格子
 
@@ -237,19 +254,40 @@ def walk_path(
                 if now - last_repath_time >= repath_interval:  # 到达重算间隔才执行一次重算
                     last_repath_time = now  # 更新“上次重算时间”
                     frame, players = update_map_fn(dm,controller)  # 刷新地图，并识别玩家点（用于避让/逃离）`````````````````````````
+                    has_players = bool(players)
+                    prev_players = last_players or []
+                    new_players_appeared = (
+                        has_players
+                        and prev_players
+                        and _has_new_players(prev_players, players)
+                    )
+                    # print("寻路中时时更新玩家坐标列表")
+                    direction_players = players
+                    escape_mode = "free"
+                    if new_players_appeared:
+                        direction_players = prev_players
+                        escape_mode = "away"
                     new_safe = ai算法.next_move_a(  # 基于当前局势计算一个“更安全”的临时目标点
                         (人物x, 人物y),  # 当前人物位置
                         frame,  # 当前地图/风险栅格（含玩家/怪物等信息）
                         (人物x, 人物y),  # 搜索中心（通常就是当前位置）
                         repath_radius,  # 搜索半径
                         repath_selection_method,  # safe_point 选择策略
-                        players=players,  # 传入玩家点列表，AI 可据此躲人
-                        escape_mode="away",  # 逃离模式：倾向于“远离”威胁源
+                        players=direction_players,  # 传入玩家点列表，AI 可据此躲人
+                        escape_mode=escape_mode,  # 选择安全点模式
                     )  # 结束 next_move_a 调用
-                    print("重算后的坐标",new_safe)
+                    print("寻路中找到玩家坐标",players,"寻路中找到新的安全点",new_safe)
+                    if has_players:
+                        if new_safe is not None:
+                            last_safe_with_players = new_safe
+                        last_players = list(players)
+                    elif last_safe_with_players is not None and new_safe == (人物x, 人物y):
+                        new_safe = last_safe_with_players
+                    # print("重算后的坐标",new_safe)
                     if new_safe is not None:  # 找到了新的安全点
                         diff = max(abs(new_safe[0] - current_goal[0]), abs(new_safe[1] - current_goal[1]))  # 新旧目标差距
-                        if diff >= 3:  # 变化太小就不重算，避免抖动（目标频繁变动）
+                        should_repath = diff >= 3 or (has_players and new_safe != current_goal)
+                        if should_repath:  # 变化太小就不重算，避免抖动（目标频繁变动）
                             new_path = ai算法.a_star_eight(  # 从当前位置到新安全点重新跑一遍 A*，得到新路径
                                 start_x=人物x,  # A* 起点 x
                                 start_y=人物y,  # A* 起点 y
@@ -268,7 +306,21 @@ def walk_path(
                                 last_dist_to_next = None  # 清空距离历史，重新开始进展判断
                                 last_progress_time = time.time()  # 重置进展时间，避免立刻触发卡点
                                 print("终点更新为:",end_x,end_y)
+
+                                frame = cv2.imread(config.MAP_IMAGE_PATH)
+                                ai_visual.visualize_grid_and_path(
+                                    frame, path,
+                                    win_name="demo_case1",
+                                    cell_size=7,
+                                    center_pos=(人物x, 人物y),
+                                    view_range=40,
+                                )
+                                cv2.waitKey(1)
+
                                 continue  # 进入下一轮循环，用新路径驱动行走
+                            if has_players:
+                                print("检测到玩家但重算路径失败，停止沿旧路径移动")
+                                return road_list
             if max(abs(人物x - end_x), abs(人物y - end_y)) <= end_threshold:  # 已经到达（或足够接近）终点
                 if right_down:  # 如果正在按住右键持续走
                     controller.right_up()  # 先松开右键，避免人物继续走偏
@@ -326,21 +378,30 @@ def walk_path(
             if idx + 2 < len(path):  # 至少还剩 3 个点，才能判断三点是否共线/可直连
                 直线段 = ai算法.check_the_connection(当前路径点, 下一点, path[idx + 2])  # 判断 (当前,下一,下下) 是否构成直线段
 
-            if 直线段:  # 直线段：更适合“按住右键持续走”，减少频繁点击导致的抖动
-                目标方位 = controller.判断方位(下一点[0], 下一点[1], 当前路径点[0], 当前路径点[1])  # 用路径点推算方向更稳定
-                if (not right_down) or (目标方位 != last_dir):  # 没按右键或方向变了才需要更新指令
-                    controller.移动方位不点击(目标方位)  # 移动到该方向（不左键点击）
-                    if not right_down:  # 如果还没进入“右键按住走路”模式
-                        controller.right_down()  # 按下右键开始持续走
-                        right_down = True  # 记录状态：右键已按下
-            else:  # 非直线段：用“左键点击方位”逐步转向更可靠
-                目标方位 = controller.判断方位(下一点[0], 下一点[1], 人物x, 人物y)  # 用当前位置到下一点计算方向，保证转向准确
-                if right_down:  # 若之前处于右键按住状态
-                    controller.right_up()  # 松开右键，避免持续走错方向
-                    right_down = False  # 更新状态
-                controller.左键点击方位_走路(目标方位)  # 左键点一下对应方向，让人物迈向下一点
+            if right_only:
+                目标方位 = controller.判断方位(下一点[0], 下一点[1], 人物x, 人物y)
+                if (not right_down) or (目标方位 != last_dir):
+                    controller.移动方位不点击(目标方位)
+                    if not right_down:
+                        controller.right_down()
+                        right_down = True
+                last_dir = 目标方位
+            else:
+                if 直线段:  # 直线段：更适合“按住右键持续走”，减少频繁点击导致的抖动
+                    目标方位 = controller.判断方位(下一点[0], 下一点[1], 当前路径点[0], 当前路径点[1])  # 用路径点推算方向更稳定
+                    if (not right_down) or (目标方位 != last_dir):  # 没按右键或方向变了才需要更新指令
+                        controller.移动方位不点击(目标方位)  # 移动到该方向（不左键点击）
+                        if not right_down:  # 如果还没进入“右键按住走路”模式
+                            controller.right_down()  # 按下右键开始持续走
+                            right_down = True  # 记录状态：右键已按下
+                else:  # 非直线段：用“左键点击方位”逐步转向更可靠
+                    目标方位 = controller.判断方位(下一点[0], 下一点[1], 人物x, 人物y)  # 用当前位置到下一点计算方向，保证转向准确
+                    if right_down:  # 若之前处于右键按住状态
+                        controller.right_up()  # 松开右键，避免持续走错方向
+                        right_down = False  # 更新状态
+                    controller.左键点击方位_走路(目标方位)  # 左键点一下对应方向，让人物迈向下一点
 
-            last_dir = 目标方位  # 记录本次目标方位，供下一轮去重判断
+                last_dir = 目标方位  # 记录本次目标方位，供下一轮去重判断
 
             if (  # 如果已经“够近”下一点，则推进 idx，开始追下一个点
                 max(abs(人物x - 下一点[0]), abs(人物y - 下一点[1])) <= reach_threshold  # 到下一点的距离达到阈值
