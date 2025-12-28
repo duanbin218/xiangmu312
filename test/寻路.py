@@ -157,7 +157,7 @@ def walk_path(
     dm: object,
     get_pos: Callable[[object,Union[None, tuple]], tuple],  # 获取人物当前坐标的回调函数；需返回 (x, y)，识别失败返回 (-1, -1)
     controller,  # 行走控制器：封装“判断方位/鼠标按下抬起/左键点方向/延时”等具体操作实现
-    bad_cells: set,  # 共享的“坏格子/禁走点”集合；本函数会在退出时清空，便于上层下一次寻路复用
+    bad_cells: Optional[set] = None,  # 共享的“坏格子/禁走点”集合；本函数会在退出时清空，便于上层下一次寻路复用
     stop_event: Union[Event, tuple[Event, ...], None] = None,  # 接收 Event 或者元组，或者 None
     small_area_checker: Optional[Callable[[object], bool]] = None,  # 可选：小范围找怪/风险检测；返回 True 时提前退出
     big_area_checker: Optional[Callable[[object], bool]] = None,  # 可选：大范围找怪/风险检测；返回 True 时提前退出
@@ -178,6 +178,9 @@ def walk_path(
     """
     if controller is None:  # 外部没传控制器时，默认用“监控控制”（避免 None 导致调用失败）
         controller = 监控控制  # 监控控制里封装了方位判断、鼠标按下/抬起、左键点方向等动作
+
+    if bad_cells is None:
+        bad_cells = set()
 
     if not path:  # 没有路径点就无需行走
         return  # 直接返回 None（上层可据此判断无需移动）
@@ -220,12 +223,6 @@ def walk_path(
     print(f"{controller}开始寻路")  # 日志：开始执行 walk_path
     try:  # 主循环包一层 try，保证异常时也会释放按键/鼠标
         while True:  # 一直走到终点/提前退出条件满足/卡住为止
-            # if stop_event is not None and stop_event.is_set():  # 外部请求中断（多线程安全退出）
-            #     print("收到 stop_event 中断信号, 退出沿路径控制人物行走")  # 日志：收到停止信号
-            #     bad_cells.clear()  # 清空坏格子集合，避免污染下一次寻路
-            #     return road_list  # 返回已走过的实际路径点，便于上层做可视化/纠错
-
-            # print("鼠标寻路中")
 
             if stop_event is not None:
                 for ev in stop_event:

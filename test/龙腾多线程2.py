@@ -961,19 +961,84 @@ class MyWindow(QMainWindow):
             #     打怪控制.键盘点击(41)
 
 
-            global bad_cells
+
             人物x, 人物y = dm_utils.ocr_player_pos(dms_a[0])
             目标x,目标y = Npc.MengZhong["sale"]
             img = cv2.imread(config.MAP_IMAGE_PATH)
             path = ai算法.a_star_eight(人物x,人物y,目标x,目标y,img,1,1)
-            寻路.walk_path(path,dm=dms_a[0],get_pos=dm_utils.ocr_player_pos,controller=监控控制,bad_cells=bad_cells,right_only=True,end_threshold=5,reach_threshold=1)
+            寻路.walk_path(path,dm=dms_a[0],get_pos=dm_utils.ocr_player_pos,controller=监控控制,right_only=True,end_threshold=5,reach_threshold=3)
 
             time.sleep(1)
             人物x,人物y = dm_utils.ocr_player_pos(dms_a[0])
-            x,y = 游戏坐标转换屏幕坐标(人物x,人物y,*Npc.MengZhong["sale"])
+            # 打开组合回收界面
+            flag = False
+            while True:
+                x,y = 游戏坐标转换屏幕坐标(人物x,人物y,*Npc.MengZhong["sale"])
+                for i in range(3):
+                    监控控制.simple_move_with_left_click(x,y)
+                    z, x1, y1 = dms_a[0].AiFindPic(*config.组合回收图片区域)
+                    if z != -1:
+                        print(x1,y1)
+                        flag = True
+                        break
+                    y = y - 28
+                    time.sleep(0.01)
+                if flag == True:
+                    break
+                time.sleep(0.01)
+            # F9打开背包
+            while True:
+                打怪控制.键盘点击(66)
+                z, x, y = dms_a[0].AiFindPic(*config.整理区域1)
+                if z != -1:
+                    print("已打开背包")
+                    break
+                time.sleep(0.01)
+
+            # 固定按顺序点击"一键回收"
+            x = 337
+            y = 35
             for i in range(3):
-                监控控制.simple_move_with_left_click(x,y)
-                y = y - 28
+                time.sleep(1)
+                offset_x = random.randint(0,37)
+                offset_y = random.randint(0,4)
+                监控控制.simple_move_with_left_click(x+offset_x,y+offset_y)
+                while True:
+                    time.sleep(0.01)
+                    ret = dms_a[0].IsDisplayDead(1633,301,1718,317, 2)
+                    if ret:
+                        y = y + 16
+                        break
+            打怪控制.键盘点击(41)  # esc
+
+
+            # 前往仓库
+            人物x, 人物y = dm_utils.ocr_player_pos(dms_a[0])
+            目标x,目标y = Npc.MengZhong["store"]
+            img = cv2.imread(config.MAP_IMAGE_PATH)
+            path = ai算法.a_star_eight(人物x,人物y,目标x,目标y,img,1,1)
+            寻路.walk_path(path,dm=dms_a[0],get_pos=dm_utils.ocr_player_pos,controller=监控控制,right_only=True,end_threshold=7,reach_threshold=3)
+            time.sleep(1)
+            人物x,人物y = dm_utils.ocr_player_pos(dms_a[0])
+            # 打开仓库界面
+            flag = False
+            while True:
+                x,y = 游戏坐标转换屏幕坐标(人物x,人物y,*Npc.MengZhong["store"])
+                for i in range(3):
+                    监控控制.simple_move_with_left_click(x,y)
+                    z, x1, y1 = dms_a[0].AiFindPic(*config.仓库界面区域)
+                    if z != -1:
+                        print(x1,y1)
+                        flag = True
+                        break
+                    y = y - 28
+                    time.sleep(0.01)
+                if flag == True:
+                    break
+                time.sleep(0.01)
+
+
+
 
             pass
         except Exception as e:
