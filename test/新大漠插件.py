@@ -21,6 +21,7 @@ import random
 dms_a = []
 dms_b = []
 dms_c = []
+dms = []
 
 def 调试输出(内容):
     print(内容)
@@ -49,6 +50,7 @@ def 大漠初始化(注册码,附加码,多开数量 = None):
     global dms_a
     global dms_b
     global dms_c
+    global dms
 
     # 要求:根目录下提供:"DmReg.dll"、"康晓.dll"、"ai.module"三个文件，否则失败！
 
@@ -85,7 +87,7 @@ def 大漠初始化(注册码,附加码,多开数量 = None):
 
         if 多开数量 is None:
 
-            for i in range(3):
+            for i in range(4):
 
                 ctypes.windll.ole32.CoInitializeEx(0, 0)  # 严格等效易语言调用‌:ml-citation{ref="2" data="citationList"}
                 instance = win32com.client.Dispatch("dm.dmsoft")
@@ -99,9 +101,12 @@ def 大漠初始化(注册码,附加码,多开数量 = None):
                 elif i == 2:
                     dms_c.append(instance)
                     调试输出(f"共创建1个dms_c的大漠对象,版本：{instance.Ver()}")
+                elif i == 3:
+                    dms.append(instance)
+                    调试输出(f"共创建1个dms的大漠对象,版本：{instance.Ver()}")
 
         else:
-            for a in range(3):
+            for a in range(4):
 
                 for i in range(多开数量):
                     ctypes.windll.ole32.CoInitializeEx(0, 0)  # 严格等效易语言调用‌:ml-citation{ref="2" data="citationList"}
@@ -120,6 +125,10 @@ def 大漠初始化(注册码,附加码,多开数量 = None):
                         dms_c.append(instance)
                         if i == 多开数量 - 1:
                             调试输出(f" 共创建了{i+1}个dms_c的大漠对象，版本：{instance.Ver()}")
+                    elif a == 3:
+                        dms.append(instance)
+                        if i == 多开数量 - 1:
+                            调试输出(f" 共创建了{i + 1}个dms的大漠对象，版本：{instance.Ver()}")
 
 
     else:

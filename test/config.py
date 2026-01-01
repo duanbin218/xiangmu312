@@ -37,9 +37,17 @@ DICT_SYS_PATH = "./字库/系统字库 - 副本.txt"
 DICT_PLAYER_PATH = "./字库/玩家字库.txt"
 被发现字库 = "./字库/被发现.txt"
 
-# MAP_IMAGE_PATH = os.path.join(BASE_DIR, "resource", "img", "binary_map", "xinrenzhijia.bmp")
-# MAP_IMAGE_PATH = os.path.join(BASE_DIR, "resource", "img", "binary_map", "sanrenzhijia.bmp")
-MAP_IMAGE_PATH = os.path.join(BASE_DIR, "resource", "img", "binary_map", "mengzhong.bmp")
+# xinrenzhijia = os.path.join(BASE_DIR, "resource", "img", "binary_map", "xinrenzhijia.bmp")
+MAP_IMAGE_PATH = os.path.join(BASE_DIR, "resource", "img", "binary_map", "sanrenzhijia.bmp")
+# MAP_IMAGE_PATH = os.path.join(BASE_DIR, "resource", "img", "binary_map", "mengzhong.bmp")
+MAP_TEST = os.path.join(BASE_DIR, "resource", "img", "binary_map", "test.bmp")
+map_dict = {
+    "新人之家": os.path.join(BASE_DIR, "resource", "img", "binary_map", "xinrenzhijia.bmp"),
+    "散人之家": os.path.join(BASE_DIR, "resource", "img", "binary_map", "sanrenzhijia.bmp"),
+    "盟重省": os.path.join(BASE_DIR, "resource", "img", "binary_map", "mengzhong.bmp"),
+}
+
+
 
 # kmNet connection settings (init_runtime defaults).
 KMNET_IP = "192.168.2.188"
@@ -61,6 +69,7 @@ DM_REG_CODE = "duanbin2187ebec7e363f16ead014d9bb6365ebdf6"
 DM_ADD_CODE = "389749"
 GAME_PROCESS_NAME = "557ltss20251027.exe"
 GAME_WINDOW_TITLE_KEYWORD = "开放"
+# GAME_WINDOW_TITLE_KEYWORD = "龙腾盛世20251027"
 GAME_WINDOW_CLASS = ""
 WINDOW_ENUM_FLAGS = 1 + 16
 
@@ -79,6 +88,8 @@ WINDOW_MOVE_Y = -26
 识别人物坐标区域 = (48, 1057, 108, 1078)
 识别人物血量区域 = (21, 1042, 81, 1055)
 OCR_NUMBER_COLOR = "#255-50|#253-50"  # 统一数字类 OCR 颜色阈值
+识别地图区域 = (4,1055,105,1081,"ffffff-000000",1.0)
+
 
 # 玩家识别区域与坐标偏移配置。
 大范围识别玩家区域 = (3, 2, 1918, 924)
@@ -107,8 +118,10 @@ PLAYER_COLOR = (25, 30, 1)      # 玩家点颜色，用于避让/风险计算
 PET_COLOR = (0, 0, 100)         # 宝宝/宠物标记
 
 # 状态检查
-整理区域 = (224,292,290,323,"./resource/img/状态图片/整理.bmp",0.95,0)
-整理区域1 = (1788,264,1838,287,"./resource/img/状态图片/整理.bmp",0.95,0)
+正常_背包整理区域 = (224, 292, 290, 323, "./resource/img/状态图片/整理.bmp", 0.95, 0)
+回收_背包整理区域 = (1788, 264, 1838, 287, "./resource/img/状态图片/整理.bmp", 0.95, 0)
+仓库_背包整理区域 = (1789,297,1841,316, "./resource/img/状态图片/整理.bmp", 0.95, 0)
 背包状态区域 = (280,261,329,328,"./resource/img/状态图片/背包状态.bmp",0.95,0)
 组合回收图片区域 = (12,140,100,165,"./resource/img/状态图片/组合回收界面.bmp",0.95,0)
 仓库界面区域 = (15,91,73,113,"./resource/img/状态图片/仓库界面.bmp",0.95,0)
+进入散人之家区域 = (63,140,135,160,"./resource/img/状态图片/进入散人之家.bmp",0.95,0)

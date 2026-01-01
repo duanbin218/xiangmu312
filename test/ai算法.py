@@ -881,6 +881,10 @@ def a_star_eight(
     if not (0 <= end_x < W and 0 <= end_y < H):
         raise ValueError("终点不在地图范围内")
 
+    if endpoint_deviation == 0 and grid[end_y, end_x, 2] != 255:      # 自己添加的判断,不知道对不对
+        print("终点不可达,不是255可走")
+        return None
+
     # 如果不开局部模式，直接全图跑
     if not use_local:
         print("a_star_eight: use_local=False, 使用整图 A*")

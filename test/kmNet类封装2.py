@@ -25,23 +25,32 @@ runtime_started = False  # 避免重复初始化 kmNet / 键盘监听
 打怪_event = threading.Event()
 打怪_event.set()  # 默认允许运行
 
-全局_event = threading.Event()
-全局_event.set()
+打怪_血量_event = threading.Event()
+打怪_血量_event.set()
+
+血量_监控_event = threading.Event()
+血量_监控_event.set()
+
+界面_event = threading.Event()
+界面_event.set()
 
 # 新增：每个线程自己的“走路中断”事件
-打怪_stop_event = threading.Event()   # 给监控线程标记
-打怪_stop_event1 = threading.Event()  # 给血量线程标记
+监控_打怪_stop_event = threading.Event()   # 给监控线程标记
+血量_打怪_stop_event = threading.Event()  # 给血量线程标记
 血量_stop_event = threading.Event()
 监控_stop_event = threading.Event()   # 监控要不要用看你需求
 
 # ========== 线程协作：语义化封装，避免各处随意 set/clear ==========
+
+
+
 def pause_all():
     """暂停所有受控延时（打怪/血量），监控线程不受影响。"""
-    全局_event.clear()
+    打怪_血量_event.clear()
 
 def resume_all():
     """恢复所有受控延时（打怪/血量），监控线程不受影响。"""
-    全局_event.set()
+    打怪_血量_event.set()
 
 def pause_combat():
     """暂停打怪线程的延时(血量/监控不受影响)."""
@@ -128,7 +137,7 @@ def 打怪延时(毫秒: int):
     - 每 100ms 检查一次 exit_flag
     - 会等待 打怪_event，可以被其他线程抢占暂停
     """
-    _delay_with_events(毫秒, wait_events=[全局_event, 打怪_event])
+    _delay_with_events(毫秒, wait_events=[打怪_血量_event, 打怪_event])
 
 
 def 血量延时(毫秒: int):
@@ -137,7 +146,7 @@ def 血量延时(毫秒: int):
     - 同样每 100ms 检查 exit_flag
     - 不受 打怪_event 影响（不被抢占暂停）
     """
-    _delay_with_events(毫秒, wait_events=[全局_event])
+    _delay_with_events(毫秒, wait_events=[打怪_血量_event, 血量_监控_event])
 
 
 def 监控延时(毫秒: int):
@@ -146,7 +155,10 @@ def 监控延时(毫秒: int):
     - 同样每 100ms 检查 exit_flag
     - 最高优先级,不受任何 Event 影响
     """
-    _delay_with_events(毫秒, wait_events=None, min_sleep=0.01)
+    _delay_with_events(毫秒, wait_events=[血量_监控_event], min_sleep=0.01)
+
+# def 界面延时(毫秒: int):
+#     _delay_with_events(毫秒, wait_events=None, min_sleep=0.01)
 
 def 游戏坐标转换屏幕坐标(人物游戏x,人物游戏y,目标游戏x,目标游戏y):
     游戏x偏移单位 = 人物游戏x-目标游戏x
@@ -337,10 +349,13 @@ class 游戏控制器:
         )
 
     def 键盘点击(self, HID值, 延时a=70, 延时b=200):
-        self.kmNet.enc_keydown(HID值)
-        self.随机延时(延时a, 延时b)
-        self.kmNet.enc_keyup(HID值)
-        self.随机延时(延时a, 延时b)
+        try:
+            self.kmNet.enc_keydown(HID值)
+            self.随机延时(延时a, 延时b)
+            self.kmNet.enc_keyup(HID值)
+            self.随机延时(延时a, 延时b)
+        finally:
+            self.kmNet.enc_keyup(HID值)
 
     def right_down(self):
         self.kmNet.enc_right(1)

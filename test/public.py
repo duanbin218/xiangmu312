@@ -16,5 +16,7 @@ class Parameter:
 class Npc:
     MengZhong = {
         "sale":(327,320),
-        "store":(332,345)
+        "store":(332,345),
+        "散人之家":(332,342)
     }
+
