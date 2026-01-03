@@ -8,8 +8,10 @@ import config
 import cv2
 import dm_utils
 import ai_visual
+from kmNet类封装2 import RestartLoop  # 改: 抢占时强制回到主循环头
 
 def 地图上绘制怪物点(img: Any, master_location: list):
+    img = img.copy()
     # 地图上绘制危险级别 S 的怪
     S_list = [(a, b) for path, a, b in master_location if 'S' in path]
     if S_list:
@@ -50,8 +52,7 @@ with open(config.MONSTER_LIST_PATH, 'r', encoding='UTF-8') as f:
     #     print(怪物路径列表)
     #     print(怪物图片路径_不包括宝宝)
 
-def 更新地图_怪物点(dm: object, controller: object):
-    map_img = cv2.imread(config.MAP_IMAGE_PATH)
+def 更新地图_怪物点(dm: object, controller: object,map_img):
     怪物列表_包括宝宝 = 识别怪物坐标(dm, controller, 543, 98, 1370, 714, 怪物图片路径, config.MONSTER_LIST_SIM)
     if 怪物列表_包括宝宝:
         map_img = 地图上绘制怪物点(map_img, 怪物列表_包括宝宝)
@@ -98,6 +99,7 @@ def big_area_checker(dm: object):
 
 
 def 地图上绘制玩家点(img,玩家坐标列表:list):
+    img = img.copy()
     pb, pg, pr = config.PLAYER_COLOR
     for (mx,my) in 玩家坐标列表:
         img[my, mx][0] = pb
@@ -106,8 +108,7 @@ def 地图上绘制玩家点(img,玩家坐标列表:list):
     return img
 
 
-def update_map_fn(dm: object,controller: object):             # 获取坐标后, 更新地图
-    map_img = cv2.imread(config.MAP_IMAGE_PATH)
+def update_map_fn(dm: object,controller: object,map_img):             # 获取坐标后, 更新地图
     玩家坐标列表 = dm_utils.scan_player(
         dm,
         controller.屏幕坐标转游戏坐标,
@@ -256,6 +257,7 @@ def _has_new_players(
 def walk_path(
     path: List[tuple],  # 规划好的路径点列表（游戏坐标/格子坐标），例如 [(x1,y1),(x2,y2)...]
     *,  # 强制后续参数使用“关键字传参”，避免不同线程/调用方位置传参造成混淆
+    img: Any,
     dm: object,
     get_pos: Callable[[object,Union[None, tuple]], tuple],  # 获取人物当前坐标的回调函数；需返回 (x, y)，识别失败返回 (-1, -1)
     controller,  # 行走控制器：封装“判断方位/鼠标按下抬起/左键点方向/延时”等具体操作实现
@@ -263,7 +265,7 @@ def walk_path(
     stop_event: Union[Event, tuple[Event, ...], None] = None,  # 接收 Event 或者元组，或者 None
     small_area_checker: Optional[Callable[[object], bool]] = None,  # 可选：小范围找怪/风险检测；返回 True 时提前退出
     big_area_checker: Optional[Callable[[object], bool]] = None,  # 可选：大范围找怪/风险检测；返回 True 时提前退出
-    update_map_fn: Optional[Callable[[object,object], Tuple[Any, List[tuple]]]] = None,  # 可选：刷新地图与玩家点（用于动态重寻路）
+    update_map_fn: Optional[Callable[[object,object,Any], Tuple[Any, List[tuple]]]] = None,  # 可选：刷新地图与玩家点（用于动态重寻路）
     end_threshold: int = 0,  # 到达终点的距离阈值（切比雪夫距离）；0 表示必须精确踩到终点
     reach_threshold: int = 0,  # 到达“下一个路径点”的距离阈值；满足后 idx 才会推进到下一个点
     max_lookahead: int = 6,  # 纠偏窗口：从当前 idx 起向前最多看 N 个点，选一个离当前位置最近的点作为新 idx
@@ -275,7 +277,7 @@ def walk_path(
     a_star_kwargs: Optional[dict] = None,  # 动态重寻路时传给 ai算法.a_star_eight 的参数（foot_len/safety_weight 等）
     right_only: bool = False,  # 为 True 时全程仅用右键移动；为 False 时允许左键+右键组合
     right_refresh_interval: float = 22,  # 右键持续按住时刷新鼠标方向的间隔（秒），避免转向慢导致跑偏
-    right_only_straight_lock: bool = True,  # right_only=True 时启用直行锁定
+    right_only_straight_lock: bool = True,  # right_only=True 时启用直行锁定,还要搭配传入 update_map_fn 刷新地图函数才能使用
     straight_lock_deviation: int = 1,  # 允许的直行偏离格数
     straight_lock_release_dist: int = 2,  # 接近直线段末端时解除直行锁定
     straight_lock_check_interval: float = 0.2,  # 直行锁定前方检测间隔（秒）
@@ -290,6 +292,8 @@ def walk_path(
     """
     if controller is None:  # 外部没传控制器时，默认用“监控控制”（避免 None 导致调用失败）
         controller = 监控控制  # 监控控制里封装了方位判断、鼠标按下/抬起、左键点方向等动作
+
+    owner_acquired = controller.acquire_input_owner()  # 改: 寻路期间独占输入，避免多线程抢占
 
     if bad_cells is None:
         bad_cells = set()
@@ -309,7 +313,7 @@ def walk_path(
         if repath_to_end and dynamic_repath and update_map_fn is not None:
             print("警告: 人物与路径起点偏差太大，尝试动态重算到固定终点")  # 尝试自愈：从当前位置重算到目标
             try:
-                frame, _ = update_map_fn(dm, controller)
+                frame, _ = update_map_fn(dm, controller, img)
                 astar_cfg = a_star_kwargs or Parameter.Ai.astar
                 new_path = ai算法.a_star_eight(
                     start_x=cur[0],
@@ -373,7 +377,7 @@ def walk_path(
                     if ev is not None and ev.is_set():
                         print(f"收到 {controller} 中断信号, 退出沿路径控制人物行走")  # 日志：收到停止信号
                         bad_cells.clear()  # 清空坏格子集合，避免污染下一次寻路
-                        return road_list  # 返回已走过的实际路径点，便于上层做可视化/纠错
+                        raise RestartLoop()  # 改: 抢占后直接回到线程主循环头
 
             if small_area_checker and small_area_checker(dm):  # 小范围发现怪物/威胁（由调用方定义检测逻辑）
                 bad_cells.clear()  # 退出前清理共享状态
@@ -394,7 +398,7 @@ def walk_path(
                 now = time.time()  # 当前时间戳（用于节流）
                 if now - last_repath_time >= repath_interval:  # 到达重算间隔才执行一次重算
                     last_repath_time = now  # 更新“上次重算时间”
-                    frame, players = update_map_fn(dm,controller)  # 刷新地图，并识别玩家点（用于避让/逃离）`````````````````````````
+                    frame, players = update_map_fn(dm,controller, img)  # 刷新地图，并识别玩家点（用于避让/逃离）`````````````````````````
                     last_straight_map = frame
                     last_straight_map_time = now
                     skip_safe_repath = False
@@ -475,16 +479,6 @@ def walk_path(
                                     last_progress_time = time.time()  # 重置进展时间，避免立刻触发卡点
                                     print("终点更新为:",end_x,end_y)
 
-                                    frame = cv2.imread(config.MAP_IMAGE_PATH)
-                                    ai_visual.visualize_grid_and_path(
-                                        frame, path,
-                                        win_name="demo_case1",
-                                        cell_size=7,
-                                        center_pos=(人物x, 人物y),
-                                        view_range=40,
-                                    )
-                                    cv2.waitKey(1)
-
                                     continue  # 进入下一轮循环，用新路径驱动行走
                                 if has_players:
                                     print("检测到玩家但重算路径失败，停止沿旧路径移动")
@@ -513,7 +507,7 @@ def walk_path(
                         right_down = False
                     last_repath_time = time.time()
                     try:
-                        frame, _ = update_map_fn(dm, controller)
+                        frame, _ = update_map_fn(dm, controller,img)
                         new_path = ai算法.a_star_eight(
                             start_x=人物x,
                             start_y=人物y,
@@ -547,7 +541,7 @@ def walk_path(
                             controller.right_up()
                             right_down = False
                         last_repath_time = time.time()
-                        frame, _ = update_map_fn(dm, controller)
+                        frame, _ = update_map_fn(dm, controller,img)
                         new_path = ai算法.a_star_eight(
                             start_x=人物x,
                             start_y=人物y,
@@ -612,7 +606,7 @@ def walk_path(
                 if repath_to_end and dynamic_repath and update_map_fn is not None:
                     last_repath_time = now
                     try:
-                        frame, _ = update_map_fn(dm, controller)
+                        frame, _ = update_map_fn(dm, controller,img)
                         new_path = ai算法.a_star_eight(
                             start_x=人物x,
                             start_y=人物y,
@@ -654,7 +648,7 @@ def walk_path(
                                 or (now - last_straight_map_time) >= straight_lock_check_interval
                             ):
                                 try:
-                                    last_straight_map, _ = update_map_fn(dm, controller)
+                                    last_straight_map, _ = update_map_fn(dm, controller,img)
                                     last_straight_map_time = now
                                 except Exception:
                                     last_straight_map = None
@@ -718,3 +712,5 @@ def walk_path(
         traceback.print_exc()  # 打印堆栈，便于定位是哪一步出错
     finally:  # 无论正常/异常/提前返回，都确保松开右键
         controller.right_up()  # 防止右键卡住导致人物一直走/影响后续操作
+        if owner_acquired:
+            controller.release_input_owner()  # 改: 释放输入占用权

@@ -1,4 +1,5 @@
 import kmNet
+import contextlib
 import random
 import win32api
 import time
@@ -31,14 +32,89 @@ runtime_started = False  # 避免重复初始化 kmNet / 键盘监听
 血量_监控_event = threading.Event()
 血量_监控_event.set()
 
-界面_event = threading.Event()
-界面_event.set()
+打怪_血量_监控_event = threading.Event()
+打怪_血量_监控_event.set()
 
 # 新增：每个线程自己的“走路中断”事件
-监控_打怪_stop_event = threading.Event()   # 给监控线程标记
-血量_打怪_stop_event = threading.Event()  # 给血量线程标记
+血量_打怪_stop_event = threading.Event()  # 打怪线程是被血量线程暂停了一下,标记下
+打怪_stop_event = threading.Event()   # 打怪线程是被除血量线程以外的其他线程暂停了一下,标记下
 血量_stop_event = threading.Event()
 监控_stop_event = threading.Event()   # 监控要不要用看你需求
+
+# ========== 线程抢占重启：用于强制回到主循环头 ==========
+_restart_tls = threading.local()  # 改: 使用线程本地存储记录“本线程”的重启事件
+
+class RestartLoop(BaseException):
+    """线程被抢占后，抛出该异常强制回到主循环头。"""  # 改: 控制流异常，避免从暂停点继续
+    pass
+
+def set_thread_restart_events(*events):
+    """注册当前线程的重启事件列表。"""  # 改: 让延时/寻路在抢占时能中断并回到循环头
+    _restart_tls.restart_events = tuple(ev for ev in events if ev is not None)
+
+def clear_thread_restart_events():
+    """清空当前线程的重启事件列表。"""  # 改: 线程结束或无需重启时可调用
+    _restart_tls.restart_events = ()
+
+def _check_restart_events():
+    """检测是否触发重启事件，触发则抛出 RestartLoop。"""  # 改: 统一重启检测入口
+    events = getattr(_restart_tls, "restart_events", None)
+    if not events:
+        return
+    for ev in events:
+        if ev is not None and ev.is_set():
+            raise RestartLoop()
+
+# ========== 输入占用：避免多线程同时抢鼠标键盘 ==========
+_input_lock = threading.RLock()
+_input_owner = None
+_input_owner_count = 0
+
+def acquire_input_owner(timeout=None):
+    """获取输入占用权（可重入）。"""  # 改: 同一线程允许嵌套占用
+    global _input_owner, _input_owner_count
+    tid = threading.get_ident()
+    if _input_owner == tid:
+        _input_owner_count += 1
+        return True
+    if timeout is None:
+        _input_lock.acquire()
+        _input_owner = tid
+        _input_owner_count = 1
+        return True
+    acquired = _input_lock.acquire(timeout=timeout)
+    if not acquired:
+        return False
+    _input_owner = tid
+    _input_owner_count = 1
+    return True
+
+def release_input_owner():
+    """释放输入占用权（仅允许占用线程释放）。"""  # 改: 防止误释放他人锁
+    global _input_owner, _input_owner_count
+    tid = threading.get_ident()
+    if _input_owner != tid:
+        return False
+    _input_owner_count -= 1
+    if _input_owner_count <= 0:
+        _input_owner = None
+        _input_owner_count = 0
+        _input_lock.release()
+    return True
+
+def is_input_owner():
+    """判断当前线程是否持有输入占用权。"""  # 改: 界面线程避免误抬右键
+    return _input_owner == threading.get_ident()
+
+@contextlib.contextmanager
+def input_owner(timeout=None):
+    """输入占用上下文（确保成对释放）。"""  # 改: 统一用法
+    acquired = acquire_input_owner(timeout=timeout)
+    try:
+        yield acquired
+    finally:
+        if acquired:
+            release_input_owner()
 
 # ========== 线程协作：语义化封装，避免各处随意 set/clear ==========
 
@@ -114,10 +190,19 @@ def _delay_with_events(毫秒: int, wait_events=None, min_sleep: float | None = 
             kmNet.enc_left(0)
             os._exit(0)
 
+        _check_restart_events()  # 改: 抢占后立即回到线程主循环
+
         if wait_events:
             for ev in wait_events:
                 if ev is not None:
-                    ev.wait()
+                    # 改: 用短超时等待，期间持续检查抢占/退出
+                    while not ev.is_set():
+                        if exit_flag:
+                            kmNet.enc_right(0)
+                            kmNet.enc_left(0)
+                            os._exit(0)
+                        _check_restart_events()  # 改: 等待时也能及时重启
+                        ev.wait(timeout=0.05)
 
         elapsed_ms = (time.perf_counter() - start) * 1000
         if elapsed_ms >= target_ms:
@@ -137,7 +222,7 @@ def 打怪延时(毫秒: int):
     - 每 100ms 检查一次 exit_flag
     - 会等待 打怪_event，可以被其他线程抢占暂停
     """
-    _delay_with_events(毫秒, wait_events=[打怪_血量_event, 打怪_event])
+    _delay_with_events(毫秒, wait_events=[打怪_event, 打怪_血量_event, 打怪_血量_监控_event])
 
 
 def 血量延时(毫秒: int):
@@ -146,7 +231,7 @@ def 血量延时(毫秒: int):
     - 同样每 100ms 检查 exit_flag
     - 不受 打怪_event 影响（不被抢占暂停）
     """
-    _delay_with_events(毫秒, wait_events=[打怪_血量_event, 血量_监控_event])
+    _delay_with_events(毫秒, wait_events=[打怪_血量_event, 打怪_血量_监控_event])
 
 
 def 监控延时(毫秒: int):
@@ -155,10 +240,10 @@ def 监控延时(毫秒: int):
     - 同样每 100ms 检查 exit_flag
     - 最高优先级,不受任何 Event 影响
     """
-    _delay_with_events(毫秒, wait_events=[血量_监控_event], min_sleep=0.01)
+    _delay_with_events(毫秒, wait_events=[打怪_血量_监控_event], min_sleep=0.01)
 
-# def 界面延时(毫秒: int):
-#     _delay_with_events(毫秒, wait_events=None, min_sleep=0.01)
+def 界面延时(毫秒: int):
+    _delay_with_events(毫秒, wait_events=None, min_sleep=0.01)
 
 def 游戏坐标转换屏幕坐标(人物游戏x,人物游戏y,目标游戏x,目标游戏y):
     游戏x偏移单位 = 人物游戏x-目标游戏x
@@ -187,6 +272,25 @@ class 游戏控制器:
     def __repr__(self):
         return f"游戏控制器(delay_func={self.delay_func.__name__})"
 
+    # ========= 输入占用 =========
+    def acquire_input_owner(self, timeout=None):
+        """获取输入占用权（可重入）。"""  # 改: 统一从控制器拿锁
+        return acquire_input_owner(timeout=timeout)
+
+    def release_input_owner(self):
+        """释放输入占用权。"""  # 改: 避免误释放他人锁
+        return release_input_owner()
+
+    def is_input_owner(self):
+        """判断当前线程是否持有输入占用权。"""  # 改: 保护 right_up 等操作
+        return is_input_owner()
+
+    @contextlib.contextmanager
+    def input_owner(self, timeout=None):
+        """输入占用上下文（确保成对释放）。"""  # 改: 便于 with 使用
+        with input_owner(timeout=timeout) as ok:
+            yield ok
+
     # ========= 基础延时 =========
     def 延时(self, 毫秒: int):
         """对外暴露的延时接口，内部统一用 _delay，避免递归。"""
@@ -209,26 +313,12 @@ class 游戏控制器:
         """
         从当前位置相对移动到目标坐标，带随机偏移和延时。
         """
-        当前x, 当前y = win32api.GetCursorPos()
-        # print(f"\n起始位置: x={当前x}, y={当前y}")
-
-        x移动 = 目标x - 当前x
-        y移动 = 目标y - 当前y
-
-        x随机偏移 = random.randint(最小x偏移, 最大x偏移)
-        y随机偏移 = random.randint(最小y偏移, 最大y偏移)
-        总x移动 = x移动 + x随机偏移
-        总y移动 = y移动 + y随机偏移
-
-        self._move_relative(总x移动, 总y移动)
-
-        for _ in range(5):
+        with self.input_owner():  # 改: 移动操作统一加输入锁，避免多线程同时抢鼠标
             当前x, 当前y = win32api.GetCursorPos()
+            # print(f"\n起始位置: x={当前x}, y={当前y}")
+
             x移动 = 目标x - 当前x
             y移动 = 目标y - 当前y
-            if abs(x移动) < 2 and abs(y移动) < 2:
-                # print("位置正确")
-                break
 
             x随机偏移 = random.randint(最小x偏移, 最大x偏移)
             y随机偏移 = random.randint(最小y偏移, 最大y偏移)
@@ -237,9 +327,24 @@ class 游戏控制器:
 
             self._move_relative(总x移动, 总y移动)
 
-            self.随机延时(10,50)
+            for _ in range(5):
+                当前x, 当前y = win32api.GetCursorPos()
+                x移动 = 目标x - 当前x
+                y移动 = 目标y - 当前y
+                if abs(x移动) < 2 and abs(y移动) < 2:
+                    # print("位置正确")
+                    break
 
-        self.随机延时(延时a,延时b)
+                x随机偏移 = random.randint(最小x偏移, 最大x偏移)
+                y随机偏移 = random.randint(最小y偏移, 最大y偏移)
+                总x移动 = x移动 + x随机偏移
+                总y移动 = y移动 + y随机偏移
+
+                self._move_relative(总x移动, 总y移动)
+
+                self.随机延时(10,50)
+
+            self.随机延时(延时a,延时b)
 
     def move_with_left_click(
         self,
@@ -277,13 +382,14 @@ class 游戏控制器:
         )
 
     def simple_move_without_click(self, 目标x, 目标y, 延时a=100, 延时b=200):
-        当前x, 当前y = win32api.GetCursorPos()
-        x移动 = 目标x - 当前x
-        y移动 = 目标y - 当前y
+        with self.input_owner():  # 改: 简单移动也加输入锁，避免鼠标被其他线程抢走
+            当前x, 当前y = win32api.GetCursorPos()
+            x移动 = 目标x - 当前x
+            y移动 = 目标y - 当前y
 
-        self._move_relative(x移动, y移动)
+            self._move_relative(x移动, y移动)
 
-        self.随机延时(延时a, 延时b)
+            self.随机延时(延时a, 延时b)
 
     def _move_with_click(
         self,
@@ -297,34 +403,36 @@ class 游戏控制器:
         """
         统一移动+点击入口，避免左右键和偏移/非偏移重复实现。
         """
-        if button not in ("left", "right"):
-            raise ValueError("button must be 'left' or 'right'")
-        if use_offset:
-            self.move_without_click(
-                目标x, 目标y,
-                最小x偏移, 最大x偏移,
-                最小y偏移, 最大y偏移,
-                延时a, 延时b,
-            )
-        else:
-            self.simple_move_without_click(目标x, 目标y, 延时a, 延时b)
-        self._mouse_click(button, 延时a, 延时b)
+        with self.input_owner():  # 改: 移动+点击整体加锁，避免移动后被插入其他输入
+            if button not in ("left", "right"):
+                raise ValueError("button must be 'left' or 'right'")
+            if use_offset:
+                self.move_without_click(
+                    目标x, 目标y,
+                    最小x偏移, 最大x偏移,
+                    最小y偏移, 最大y偏移,
+                    延时a, 延时b,
+                )
+            else:
+                self.simple_move_without_click(目标x, 目标y, 延时a, 延时b)
+            self._mouse_click(button, 延时a, 延时b)
 
     def _mouse_click(self, button: str, 延时a=70, 延时b=200):
         """
         统一鼠标点击逻辑，避免左右键重复实现。
         """
-        if button == "left":
-            click = self.kmNet.enc_left
-        elif button == "right":
-            click = self.kmNet.enc_right
-        else:
-            raise ValueError("button must be 'left' or 'right'")
+        with self.input_owner():  # 改: 点击动作加锁，避免并发点击干扰
+            if button == "left":
+                click = self.kmNet.enc_left
+            elif button == "right":
+                click = self.kmNet.enc_right
+            else:
+                raise ValueError("button must be 'left' or 'right'")
 
-        click(1)
-        self.随机延时(延时a, 延时b)
-        click(0)
-        self.随机延时(延时a, 延时b)
+            click(1)
+            self.随机延时(延时a, 延时b)
+            click(0)
+            self.随机延时(延时a, 延时b)
 
     def left_click(self):
         self._mouse_click("left")
@@ -349,19 +457,22 @@ class 游戏控制器:
         )
 
     def 键盘点击(self, HID值, 延时a=70, 延时b=200):
-        try:
-            self.kmNet.enc_keydown(HID值)
-            self.随机延时(延时a, 延时b)
-            self.kmNet.enc_keyup(HID值)
-            self.随机延时(延时a, 延时b)
-        finally:
-            self.kmNet.enc_keyup(HID值)
+        with self.input_owner():  # 改: 键盘输入加锁，避免与鼠标/键盘并发冲突
+            try:
+                self.kmNet.enc_keydown(HID值)
+                self.随机延时(延时a, 延时b)
+                self.kmNet.enc_keyup(HID值)
+                self.随机延时(延时a, 延时b)
+            finally:
+                self.kmNet.enc_keyup(HID值)
 
     def right_down(self):
-        self.kmNet.enc_right(1)
+        with self.input_owner():  # 改: 右键按下也纳入输入锁保护
+            self.kmNet.enc_right(1)
 
     def right_up(self):
-        self.kmNet.enc_right(0)
+        with self.input_owner():  # 改: 右键松开也纳入输入锁保护
+            self.kmNet.enc_right(0)
 
     def 随机延时(self, 最小延时, 最大延时):
         随机时间 = random.randint(最小延时, 最大延时)

@@ -29,7 +29,7 @@ init_runtime()
 
 监控控制 = 游戏控制器(delay_func=监控延时)
 
-# 界面控制 = 游戏控制器(delay_func=界面延时)
+界面控制 = 游戏控制器(delay_func=界面延时)
 
 map_path = None
 
@@ -62,26 +62,6 @@ def 设置字库(大漠对象):
     大漠对象.SetDict(2, config.DICT_PLAYER_PATH)
     大漠对象.SetDict(3, config.被发现字库)
 
-def _入场检查(dm_obj, path, max_start_dist=5):
-    """抽出入场检查，避免不同寻路函数出现判定差异。"""
-    if not path:
-        return None
-
-    cur = dm_utils.ocr_player_pos(dm_obj)
-    if not cur or cur[0] < 0 or cur[1] < 0:
-        print("警告: 入场时无法识别人 物坐标，放弃本次行走")
-        return None
-
-    人物x0, 人物y0 = cur
-    start_dist = max(abs(人物x0 - path[0][0]), abs(人物y0 - path[0][1]))
-    print(f"入场检查: path[0]={path[0]}, 人物起始=({人物x0},{人物y0}), dist={start_dist}")
-
-    if start_dist > max_start_dist:  # 阈值你自己调，比如 >3 或 >8
-        print("警告: 人物与路径起点偏差太大，视为无效路径，退出，让上层重新算")
-        return None
-
-    return (人物x0, 人物y0)
-
 
 # 记录捡取物品的坏点坐标,防止物品是其他人的,不能拾取,人物来回往该物品地址寻路
 wupin_list = set()
@@ -105,9 +85,7 @@ class WorkerThread(QThread):
         设置字库(大漠对象)
         self.句柄 = 句柄
         self.线程名 = 线程名
-        # self.map_img = cv2.imread("D5073_mafagumu.bmp")
-        # self.map_img = cv2.imread("sanrenzhijia.bmp")
-        self.map_img = cv2.imread(config.MAP_IMAGE_PATH)
+        # self.map_img = cv2.imread(config.MAP_IMAGE_PATH)
         self.宝宝在身边未攻击次数 = 0
 
     def run(self):
@@ -126,31 +104,87 @@ class WorkerThread(QThread):
         #     self.caozuo.emit(f"线程名:{self.线程名}|{窗口标题}|线程启动成功")
         #     self.监控线程()
 
-        # elif self.线程名 == '界面线程':
-        #     self.jiankong.emit(f"线程名:{self.线程名}|{窗口标题}|线程启动成功")
-        #     self.界面线程()
+        elif self.线程名 == '界面线程':
+            self.jiankong.emit(f"线程名:{self.线程名}|{窗口标题}|线程启动成功")
+            self.界面线程()
 
-    # def 界面线程(self):
-    #     global map_path
-    #     while True:
-    #         self.大漠对象.UseDict(1)
-    #         text = self.大漠对象.Ocr(*config.识别地图区域)
-    #         for i, char in enumerate(text):
-    #             if char in ':`.,' or not ('\u4e00' <= char <= '\u9fff'):
-    #                 result = text[:i]
-    #                 break
-    #         else:
-    #             result = text
-    #         map_path = config.map_dict[result]
-    #         if result == "盟重省":
-    #             # 抢占
-    #             print(map_path)
-    #             # 回收后再下图
-    #             # 释放抢占
-    #
-    #
-    #         pass
 
+    def 界面线程(self):
+        global map_path
+        接管中 = False  # 改: 界面线程接管状态
+        盟重已处理 = False  # 改: 避免盟重反复执行回城操作
+        while True:
+            try:
+                # print("1111")
+                z, x, y = self.大漠对象.AiFindPic(*config.开始区域)
+                if z != -1:
+                    if not 接管中:
+                        mark_walk_stopped(打怪_stop_event, 血量_stop_event, 监控_stop_event)  # 改: 先打标记再暂停
+                        打怪_血量_监控_event.clear()
+                        界面控制.acquire_input_owner()  # 改: 接管时独占输入
+                        接管中 = True
+                        盟重已处理 = False
+                    界面控制.move_with_left_click(x,y,0,5,0,3)
+                    界面控制.延时(2000)
+                z, x, y = self.大漠对象.AiFindPic(*config.确定区域)
+                if z != -1:
+                    if not 接管中:
+                        mark_walk_stopped(打怪_stop_event, 血量_stop_event, 监控_stop_event)  # 改: 先打标记再暂停
+                        打怪_血量_监控_event.clear()
+                        界面控制.acquire_input_owner()  # 改: 接管时独占输入
+                        接管中 = True
+                        盟重已处理 = False
+                    界面控制.move_with_left_click(x,y,0,5,0,3)
+                    界面控制.延时(2000)
+                z, x, y = self.大漠对象.AiFindPic(*config.游戏中标志区域)
+                if z != -1:
+                    map_name = self.识别地图()
+                    map_path_new = config.map_dict.get(map_name)  # 改: OCR 异常时避免 KeyError
+                    if map_path_new:
+                        map_path = map_path_new
+
+                    if map_name == "盟重省":
+                        if not 接管中:
+                            mark_walk_stopped(打怪_stop_event, 血量_stop_event, 监控_stop_event)  # 改: 先打标记再暂停
+                            打怪_血量_监控_event.clear()
+                            界面控制.acquire_input_owner()  # 改: 接管时独占输入
+                            接管中 = True
+                            盟重已处理 = False
+                        if not 盟重已处理:
+                            if map_path_new:
+                                img = cv2.imread(map_path_new)
+                                self.回城操作(img,界面控制)
+                                盟重已处理 = True  # 改: 盟重操作只做一次，等待地图变化
+                    else:
+                        盟重已处理 = False
+                        if 接管中 and map_path_new:
+                            打怪_血量_监控_event.set()  # 改: 满足“游戏中标志+非盟重”后恢复
+                            接管中 = False
+                            if 界面控制.is_input_owner():
+                                界面控制.right_up()  # 改: 仅在拥有输入时收尾
+                                界面控制.release_input_owner()
+                # 游戏中标志未出现时，如果已接管则保持暂停（不做恢复）
+                界面控制.延时(100)
+
+            except Exception as e:
+                print(repr(e))  # 输出异常的类型
+                traceback.print_exc()
+                if 界面控制.is_input_owner():
+                    界面控制.right_up()  # 改: 异常时安全释放
+                    界面控制.release_input_owner()
+                    接管中 = False
+                continue
+
+    def 识别地图(self):
+            self.大漠对象.UseDict(1)
+            text = self.大漠对象.Ocr(*config.识别地图区域)
+            for i, char in enumerate(text):
+                if char in ':`.,' or not ('\u4e00' <= char <= '\u9fff'):
+                    result = text[:i]
+                    break
+            else:
+                result = text
+            return result
 
 
     def 监控线程(self):
@@ -159,71 +193,82 @@ class WorkerThread(QThread):
         cv2.moveWindow("demo_case", 1920, 0)
         cv2.namedWindow("demo_case1")
         cv2.moveWindow("demo_case1", 1920, 700)
-
+        global map_path
+        set_thread_restart_events(监控_stop_event)  # 改: 注册监控线程的重启事件
         while True:
+            try:
+                监控控制.延时(0)  # 改: 统一等待运行事件，暂停时不往下跑
 
-            s = time.perf_counter()
-            # 全地图循环扫描玩家,如果有玩家,就执行后面的操作躲避玩家,否则就继续循环
-            player_pos = dm_utils.ocr_player_pos(self.大漠对象)
-            players = dm_utils.scan_player(
-                self.大漠对象,
-                监控控制.屏幕坐标转游戏坐标,
-                player_pos=player_pos,
-            )
-            if players:
-                frame = self.map_img.copy()
-                frame = 寻路.地图上绘制玩家点(frame, players)
-                人物x,人物y = player_pos
-                safe_point = ai算法.next_move_a(
-                    (人物x,人物y),
-                    frame,
-                    (人物x,人物y),
-                    40,
-                    1,
-                    escape_mode="free"
+                s = time.perf_counter()
+                # 全地图循环扫描玩家,如果有玩家,就执行后面的操作躲避玩家,否则就继续循环
+                player_pos = dm_utils.ocr_player_pos(self.大漠对象)
+                players = dm_utils.scan_player(
+                    self.大漠对象,
+                    监控控制.屏幕坐标转游戏坐标,
+                    player_pos=player_pos,
                 )
-                if safe_point is not None:
-                    ai_visual.visualize_move(
-                        frame, (人物x, 人物y), safe_point,
-                        search_center=(人物x, 人物y), search_radius=40,
-                        show_risk=True, scale=7, window="demo_case",
-                        outfile="viz_demo.png",view_range=50
+                if players:
+                    # frame = self.map_img.copy()
+                    map_img = cv2.imread(map_path)
+                    frame = 寻路.地图上绘制玩家点(map_img, players)
+                    人物x,人物y = player_pos
+                    safe_point = ai算法.next_move_a(
+                        (人物x,人物y),
+                        frame,
+                        (人物x,人物y),
+                        40,
+                        1,
+                        escape_mode="free"
                     )
-                    cv2.waitKey(1)
-                    path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 2, 1, 1, 1, 1)
-                    if path is not None:
-                        ai_visual.visualize_grid_and_path(
-                            frame,path,
-                            win_name="demo_case1",
-                            cell_size=7,
-                            center_pos=(人物x, 人物y),
-                            view_range=40,
+                    if safe_point is not None:
+                        ai_visual.visualize_move(
+                            frame, (人物x, 人物y), safe_point,
+                            search_center=(人物x, 人物y), search_radius=40,
+                            show_risk=True, scale=7, window="demo_case",
+                            outfile="viz_demo.png",view_range=50
                         )
                         cv2.waitKey(1)
-                        pause_all()
-                        监控控制.键盘点击(41)  # esc
-                        print("监控线程抢占开始,首次安全点坐标:",safe_point)
-                        print("监控线程抢占开始,安全点路径:",path)
-                        mark_walk_stopped(监控_打怪_stop_event, 血量_stop_event) # 暂停所有线程同时,给所有线程做个标记,恢复所有线程时,重置所有线程中的循环
-                        寻路.walk_path(
-                            path,
-                            dm=self.大漠对象,
-                            get_pos=dm_utils.ocr_player_pos,
-                            controller=监控控制,
-                            bad_cells=bad_cells,
-                            end_threshold=1,
-                            reach_threshold=1,
-                            update_map_fn=寻路.update_map_fn,
-                            dynamic_repath=True,
-                            repath_radius=40,
-                        )
-                        print("监控线程抢占结束")
-                        resume_all()
+                        path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 2, 1, 1, 1, 1)
+                        if path is not None:
+                            ai_visual.visualize_grid_and_path(
+                                frame,path,
+                                win_name="demo_case1",
+                                cell_size=7,
+                                center_pos=(人物x, 人物y),
+                                view_range=40,
+                            )
+                            cv2.waitKey(1)
+                            with 监控控制.input_owner():  # 改: 抢占时独占输入
+                                mark_walk_stopped(打怪_stop_event, 血量_stop_event)  # 改: 先打标记再暂停
+                                pause_all()
+                                监控控制.键盘点击(41)  # esc
+                                print("监控线程抢占开始,首次安全点坐标:",safe_point)
+                                print("监控线程抢占开始,安全点路径:",path)
+                                寻路.walk_path(
+                                    path,
+                                    img=map_img,
+                                    dm=self.大漠对象,
+                                    get_pos=dm_utils.ocr_player_pos,
+                                    controller=监控控制,
+                                    bad_cells=bad_cells,
+                                    end_threshold=1,
+                                    reach_threshold=1,
+                                    update_map_fn=寻路.update_map_fn,
+                                    dynamic_repath=True,
+                                    repath_radius=40,
+                                    stop_event=(监控_stop_event,)
+                                )
+                                print("监控线程抢占结束")
+                                resume_all()
 
-            # e = time.perf_counter()
-            # t = e - s
-            # print("找字用时:", t)
-            监控控制.延时(100)
+                # e = time.perf_counter()
+                # t = e - s
+                # print("找字用时:", t)
+                监控控制.延时(100)
+            except RestartLoop:
+                监控_stop_event.clear()  # 改: 清掉重启标记，回到循环头
+                监控控制.right_up()  # 改: 防止右键卡住
+                continue
 
 
     def 血量线程(self):
@@ -233,108 +278,118 @@ class WorkerThread(QThread):
         cv2.moveWindow("path1", 1920, 350)
         cv2.namedWindow("path2")
         cv2.moveWindow("path2", 1920, 700)
+        global map_path
+        set_thread_restart_events(血量_stop_event)  # 改: 注册血量线程的重启事件
         try:
             while True:
+                try:
+                    血量控制.延时(0)  # 改: 统一等待运行事件，暂停时不往下跑
+                    if 血量_stop_event.is_set():
+                        raise RestartLoop()  # 改: 被抢占后强制回到循环头
 
-                if 血量_stop_event.is_set():
-                    血量_stop_event.clear()
+                    当前血量, 最大血量 = dm_utils.ocr_hp(self.大漠对象)
+                    self.jiankong.emit(f"当前血量:{当前血量}|最大血量:{最大血量}")
 
-                当前血量, 最大血量 = dm_utils.ocr_hp(self.大漠对象)
-                self.jiankong.emit(f"当前血量:{当前血量}|最大血量:{最大血量}")
-
-                if 当前血量 == 0:
-                    self.jiankong.emit("人物已死亡,需要重新登录游戏")
-                    time.sleep(0.1)
-                    continue
-                if 当前血量 < 0 or 最大血量 <= 0:
-                    # OCR 失败或分母异常时跳过本轮，避免误判与除零
-                    time.sleep(0.1)
-                    continue
-
-                血量比例 = 当前血量/最大血量
-                if 0 < 血量比例 < 0.95:
-                    pause_combat()  # 暂停打怪线程
-                    血量控制.键盘点击(41)  # esc
-                    print("血量线程抢占开始")
-                    mark_walk_stopped(血量_打怪_stop_event) # 暂停打怪线程同时做个标记,恢复打怪线程时通过这个标识重置打怪线程循环
-                    s = time.perf_counter()
-
-                    # 找安全坐标点
-                    人物x,人物y = dm_utils.ocr_player_pos(self.大漠对象)
-                    if 人物x < 0 or 人物y < 0:
-                        # 坐标识别失败时不进行寻路，避免走到异常位置
+                    if 当前血量 == 0:
+                        self.jiankong.emit("人物已死亡,需要重新登录游戏")
                         time.sleep(0.1)
                         continue
-                    z, x, y = self.大漠对象.AiFindPic(150,119,1719,867, config.PET_PIC_PATH, config.PET_PIC_SIM, 0)
-                    # z, x, y = self.大漠对象.AiFindPic(543, 98, 1370, 714, r"./pic/guaiwu/单机_宝宝.bmp", 0.60, 0)
-                    # 找到宝宝坐标,以宝宝坐标为中心找安全坐标点
+                    if 当前血量 < 0 or 最大血量 <= 0:
+                        # OCR 失败或分母异常时跳过本轮，避免误判与除零
+                        time.sleep(0.1)
+                        continue
 
-                    frame,_ = 寻路.更新地图_怪物点(self.大漠对象,血量控制)
+                    血量比例 = 当前血量/最大血量
+                    if 0 < 血量比例 < 0.95:
+                        mark_walk_stopped(血量_打怪_stop_event)  # 改: 先打标记再暂停
+                        pause_combat()  # 暂停打怪线程
+                        with 血量控制.input_owner():  # 改: 抢占时独占输入
+                            血量控制.键盘点击(41)  # esc
+                            print("血量线程抢占开始")
+                            s = time.perf_counter()
 
-                    if z != -1:
-                        宝宝x,宝宝y = 血量控制.屏幕坐标转游戏坐标(人物x,人物y,x+14,y+34)
-                        # 血量在75%以上时,安全点搜索半径为3,小范围选择安全坐标点
-                        if 0.75 < 血量比例 < 0.95:
-                            bin_safe_point = ai算法.next_move_a((人物x,人物y),frame,(宝宝x,宝宝y),2,1)
-                            ai_visual.visualize_move(frame, (人物x, 人物y), bin_safe_point,
-                                                     search_center=(宝宝x, 宝宝y),search_radius=2, scale=7, window="test2",
-                                                     outfile="viz_demo.png", view_range=25)
-                        # 血量在75%以下时,安全点搜索半径为全图,大范围选择安全坐标点
-                        elif 0 < 血量比例 <= 0.75:
-                            bin_safe_point = ai算法.next_move_a((人物x, 人物y), frame, (宝宝x,宝宝y), None,1)
-                            ai_visual.visualize_move(frame,(人物x,人物y),bin_safe_point,search_center=(宝宝x,宝宝y),scale=7,window="test2",outfile="viz_demo.png",view_range=25)
-                    else:
-                    # 未找到宝宝坐标,以人物坐标为中心找安全坐标点
-                        人物x,人物y = dm_utils.ocr_player_pos(self.大漠对象)
-                        if 0.75 < 血量比例 < 0.95:
-                            bin_safe_point = ai算法.next_move_a((人物x,人物y),frame,(人物x, 人物y),5,1)
-                            ai_visual.visualize_move(frame, (人物x, 人物y), bin_safe_point,
-                                                     search_center=(人物x, 人物y),search_radius=5, scale=7, window="test2",
-                                                     outfile="viz_demo.png", view_range=25)
-                        elif 0 < 血量比例 <= 0.75:
-                            bin_safe_point = ai算法.next_move_a((人物x, 人物y), frame, (人物x, 人物y), None,1)
-                            ai_visual.visualize_move(frame, (人物x, 人物y), bin_safe_point,
-                                                     search_center=(人物x, 人物y), scale=7, window="test2",
-                                                     outfile="viz_demo.png", view_range=25)
-                    cv2.waitKey(1)
+                            # 找安全坐标点
+                            人物x,人物y = dm_utils.ocr_player_pos(self.大漠对象)
+                            if 人物x < 0 or 人物y < 0:
+                                # 坐标识别失败时不进行寻路，避免走到异常位置
+                                time.sleep(0.1)
+                                continue
+                            z, x, y = self.大漠对象.AiFindPic(150,119,1719,867, config.PET_PIC_PATH, config.PET_PIC_SIM, 0)
+                            # z, x, y = self.大漠对象.AiFindPic(543, 98, 1370, 714, r"./pic/guaiwu/单机_宝宝.bmp", 0.60, 0)
+                            # 找到宝宝坐标,以宝宝坐标为中心找安全坐标点
+                            map_img = cv2.imread(map_path)
+                            frame,_ = 寻路.更新地图_怪物点(self.大漠对象,血量控制,map_img)
 
-                    # 寻往安全坐标点
-                    if bin_safe_point is not None:
-
-                        frame,_  = 寻路.更新地图_怪物点(self.大漠对象,血量控制)
-                        path = ai算法.a_star_eight(人物x, 人物y, bin_safe_point[0],bin_safe_point[1] ,frame,1,0,1,1,1)
-                        print("血量线程安全坐标点:",bin_safe_point)
-                        print('血量线程安全路径')
-                        # 围绕着宝宝或者人物坐标点移动到安全位置
-                        if path is not None :
-                            ai_visual.visualize_grid_and_path(frame,path,win_name="path1",cell_size=7,center_pos=(人物x,人物y),view_range=25)
+                            if z != -1:
+                                宝宝x,宝宝y = 血量控制.屏幕坐标转游戏坐标(人物x,人物y,x+14,y+34)
+                                # 血量在75%以上时,安全点搜索半径为3,小范围选择安全坐标点
+                                if 0.75 < 血量比例 < 0.95:
+                                    bin_safe_point = ai算法.next_move_a((人物x,人物y),frame,(宝宝x,宝宝y),2,1)
+                                    ai_visual.visualize_move(frame, (人物x, 人物y), bin_safe_point,
+                                                             search_center=(宝宝x, 宝宝y),search_radius=2, scale=7, window="test2",
+                                                             outfile="viz_demo.png", view_range=25)
+                                # 血量在75%以下时,安全点搜索半径为全图,大范围选择安全坐标点
+                                elif 0 < 血量比例 <= 0.75:
+                                    bin_safe_point = ai算法.next_move_a((人物x, 人物y), frame, (宝宝x,宝宝y), None,1)
+                                    ai_visual.visualize_move(frame,(人物x,人物y),bin_safe_point,search_center=(宝宝x,宝宝y),scale=7,window="test2",outfile="viz_demo.png",view_range=25)
+                            else:
+                                # 未找到宝宝坐标,以人物坐标为中心找安全坐标点
+                                人物x,人物y = dm_utils.ocr_player_pos(self.大漠对象)
+                                if 0.75 < 血量比例 < 0.95:
+                                    bin_safe_point = ai算法.next_move_a((人物x,人物y),frame,(人物x, 人物y),5,1)
+                                    ai_visual.visualize_move(frame, (人物x, 人物y), bin_safe_point,
+                                                             search_center=(人物x, 人物y),search_radius=5, scale=7, window="test2",
+                                                             outfile="viz_demo.png", view_range=25)
+                                elif 0 < 血量比例 <= 0.75:
+                                    bin_safe_point = ai算法.next_move_a((人物x, 人物y), frame, (人物x, 人物y), None,1)
+                                    ai_visual.visualize_move(frame, (人物x, 人物y), bin_safe_point,
+                                                             search_center=(人物x, 人物y), scale=7, window="test2",
+                                                             outfile="viz_demo.png", view_range=25)
                             cv2.waitKey(1)
-                            ret_path_list = 寻路.walk_path(
-                            path,
-                            dm=self.大漠对象,
-                            get_pos=dm_utils.ocr_player_pos,
-                            controller=血量控制,
-                            bad_cells=bad_cells,
-                            stop_event=(血量_stop_event,),
-                            end_threshold=1,
-                            reach_threshold=1,
-                            )
-                            ai_visual.visualize_grid_and_path(frame, ret_path_list, win_name="path2", cell_size=7,
-                                                              center_pos=(人物x, 人物y), view_range=25)
-                            cv2.waitKey(1)
-                            e = time.perf_counter()
-                            t = e - s
-                            print('跑到安全点用时:', t)
 
-                            血量控制.随机延时(100, 300)
-                            # F3隐身,让怪物不要攻击自己
-                            血量控制.键盘点击(60)
-                            # 血量控制.随机延时(1400, 1600)
+                            # 寻往安全坐标点
+                            if bin_safe_point is not None:
 
-                elif 0.95 <= 血量比例 <= 1 and 打怪_event.is_set() != True:
-                    print("血量线程抢占结束")
-                    resume_combat()  # 继续打怪线程
-                血量控制.延时(10)
+                                frame,_  = 寻路.更新地图_怪物点(self.大漠对象,血量控制,map_img)
+                                path = ai算法.a_star_eight(人物x, 人物y, bin_safe_point[0],bin_safe_point[1] ,frame,1,0,1,1,1)
+                                print("血量线程安全坐标点:",bin_safe_point)
+                                # 围绕着宝宝或者人物坐标点移动到安全位置
+                                if path is not None :
+                                    ai_visual.visualize_grid_and_path(frame,path,win_name="path1",cell_size=7,center_pos=(人物x,人物y),view_range=25)
+                                    cv2.waitKey(1)
+
+                                    ret_path_list = 寻路.walk_path(
+                                    path,
+                                    img=map_img,
+                                    dm=self.大漠对象,
+                                    get_pos=dm_utils.ocr_player_pos,
+                                    controller=血量控制,
+                                    bad_cells=bad_cells,
+                                    stop_event=(血量_stop_event,),
+                                    end_threshold=1,
+                                    reach_threshold=1,
+                                    )
+
+                                    ai_visual.visualize_grid_and_path(frame, ret_path_list, win_name="path2", cell_size=7,
+                                                                      center_pos=(人物x, 人物y), view_range=25)
+                                    cv2.waitKey(1)
+                                    e = time.perf_counter()
+                                    t = e - s
+                                    print('跑到安全点用时:', t)
+
+                                    血量控制.随机延时(100, 300)
+                                    # F3隐身,让怪物不要攻击自己
+                                    血量控制.键盘点击(60)
+                                    # 血量控制.随机延时(1400, 1600)
+
+                    elif 0.95 <= 血量比例 <= 1 and 打怪_event.is_set() != True:
+                        print("血量线程抢占结束")
+                        resume_combat()  # 继续打怪线程
+                    血量控制.延时(10)
+                except RestartLoop:
+                    血量_stop_event.clear()  # 改: 清掉重启标记，回到循环头
+                    血量控制.right_up()  # 改: 防止右键卡住
+                    continue
 
         except Exception as e:
             print(e)
@@ -349,152 +404,168 @@ class WorkerThread(QThread):
         try:
             cv2.namedWindow("test1")
             cv2.moveWindow("test1", 1920, 1080)
-            if self.map_img is None:
-                if config.DEBUG_LOG:
-                    print(f"未找到 {config.MAP_IMAGE_PATH}")
-                return
+
             global bad_cells               # 记录坏点(找怪时的怪物点)
             global last_clear_time
             global wupin_list              # 记录坏点(找物品时的物品点)
+            global map_path
+            set_thread_restart_events(打怪_stop_event, 血量_打怪_stop_event)  # 改: 注册打怪线程的重启事件
             while True:
+                try:
+                    打怪控制.延时(0)  # 改: 统一等待运行事件，暂停时不往下跑
+                    if 打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
+                        raise RestartLoop()  # 改: 被抢占后强制回到循环头
+                    # map_img = cv2.imread(config.map_dict["散人之家"])
+                    map_img = cv2.imread(map_path)
+                    # print(map_path)
+                    # 每隔CLEAR_INTERVAL时间,清空wupin_list记录已捡物品的集合
+                    now = time.time()
+                    if now - last_clear_time >= CLEAR_INTERVAL:
+                        if config.DEBUG_LOG:
+                            print("清空wupin_list之前", wupin_list)
+                        wupin_list.clear()
+                        if config.DEBUG_LOG:
+                            print("定时清空 wupin_list", wupin_list)
+                        last_clear_time = now
 
-                # 每隔CLEAR_INTERVAL时间,清空wupin_list记录已捡物品的集合
-                now = time.time()
-                if now - last_clear_time >= CLEAR_INTERVAL:
-                    if config.DEBUG_LOG:
-                        print("清空wupin_list之前", wupin_list)
-                    wupin_list.clear()
-                    if config.DEBUG_LOG:
-                        print("定时清空 wupin_list", wupin_list)
-                    last_clear_time = now
+                    if 打怪_stop_event.is_set():      # 从其他线程恢复,人物已经远离之前的位置了,不用检测宝宝是否在打怪以及地上是否有物品
+                        打怪_stop_event.clear()
 
-                if 监控_打怪_stop_event.is_set():      # 从监控线程恢复,人物已经远离之前的位置了,不用检测宝宝是否在打怪以及地上是否有物品
-                    监控_打怪_stop_event.clear()
-
-                if 血量_打怪_stop_event.is_set():      # "打怪_stop_event1"为True,表示血量线程暂停过又恢复了打怪线程,那么检查宝宝是否打怪和检查周围是否有物品
-                    血量_打怪_stop_event.clear()
-                    print("从血量线程恢复,检测宝宝是否打怪")
-                    self.fighting(150,119,1719,867)
-                    打怪控制.延时(1000)                     # 给物品找图时间(物品掉落延迟)
-                    self.拾取物品()
-                if 监控_打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
-                    continue
-
-                frame = self.map_img.copy()
-                人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
-
-                怪物列表_包括宝宝 = 寻路.识别怪物坐标(self.大漠对象,打怪控制,5, 28, 1916, 823,怪物图片路径,config.MONSTER_LIST_SIM)
-                怪物列表_不包括宝宝 = [item for item in 怪物列表_包括宝宝 if '宝宝' not in item[0]]
-
-                # 全局集合 bad_cells 记录了寻路过程中不能到达的怪物游戏坐标,找最近怪时先筛除掉这些不能到达的怪(不在这些怪中找最近怪)
-                # bad_cells 在 `沿路径控制人物行走()` 寻路函数中会被清空重置,重置条件是寻路函数能正常完成寻路到达终点,bad_cells就会被清空重置
-                if bad_cells:
-                    怪物列表_不包括宝宝 = [item for item in 怪物列表_不包括宝宝 if item not in bad_cells]
-
-                if 怪物列表_不包括宝宝:
-                    寻路.地图上绘制怪物点(frame, 怪物列表_包括宝宝)
-
-                    # 寻找最近怪物
-                    怪物距离 = [np.hypot(mx - 人物x, my - 人物y) for (name,mx, my) in 怪物列表_不包括宝宝]
-                    最近怪物 = 怪物列表_不包括宝宝[np.argmin(怪物距离)]
-                    bad_cells.add(最近怪物)
-                    # print('bad_cells',bad_cells)
-                    name ,最近x, 最近y = 最近怪物
-
-                    if config.DEBUG_LOG:
-                        print('最近怪:', name, 最近x, 最近y)
-
-                    # A星寻路算法算出路线path
-                    path = ai算法.a_star_eight(人物x, 人物y, 最近x, 最近y,frame,1,1,11,0.001,11)
-                    if config.DEBUG_LOG:
-                        print('寻路路径', path)
-
-                    # 沿着寻路路径开始寻路
-                    ret_path_list = 寻路.walk_path(
-                                    path,
-                                    dm=self.大漠对象,
-                                    get_pos=dm_utils.ocr_player_pos,
-                                    controller=打怪控制,
-                                    bad_cells=bad_cells,
-                                    stop_event=(监控_打怪_stop_event, 血量_stop_event, 血量_打怪_stop_event),
-                                    small_area_checker=寻路.small_area_checker,
-                                    end_threshold=1,
-                                    reach_threshold=1,
-                                    right_only=True,
-                                    pursuit_mode=True,
-                                )
-
-                    if 监控_打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
+                    if 血量_打怪_stop_event.is_set():      # "血量_打怪_stop_event"为True,表示血量线程暂停过又恢复了打怪线程,那么检查宝宝是否打怪和检查周围是否有物品
+                        血量_打怪_stop_event.clear()
+                        print("从血量线程恢复,检测宝宝是否打怪")
+                        self.fighting(150,119,1719,867)
+                        打怪控制.延时(1000)                     # 给物品找图时间(物品掉落延迟)
+                        self.拾取物品(map_img)
+                    if 打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
                         continue
 
-                    打怪控制.随机延时(400, 600)
-                    # F3隐身,让怪物不要攻击自己
-                    打怪控制.键盘点击(60)
-                    打怪控制.随机延时(1200, 1300)
-                    # 宝宝在人物一边,怪物在人物另一边,宝宝和怪物被人物隔开了,比如人物要进门打怪,但是人物卡在了门口
-                    if self.宝宝在身边未攻击次数 > 5:
+                    人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
+
+                    怪物列表_包括宝宝 = 寻路.识别怪物坐标(self.大漠对象,打怪控制,5, 28, 1916, 823,怪物图片路径,config.MONSTER_LIST_SIM)
+                    怪物列表_不包括宝宝 = [item for item in 怪物列表_包括宝宝 if '宝宝' not in item[0]]
+
+                    # 全局集合 bad_cells 记录了寻路过程中不能到达的怪物游戏坐标,找最近怪时先筛除掉这些不能到达的怪(不在这些怪中找最近怪)
+                    # bad_cells 在 `沿路径控制人物行走()` 寻路函数中会被清空重置,重置条件是寻路函数能正常完成寻路到达终点,bad_cells就会被清空重置
+                    if bad_cells:
+                        怪物列表_不包括宝宝 = [item for item in 怪物列表_不包括宝宝 if item not in bad_cells]
+
+                    if 怪物列表_不包括宝宝:
+                        frame = 寻路.地图上绘制怪物点(map_img, 怪物列表_包括宝宝)
+
+                        # 寻找最近怪物
+                        怪物距离 = [np.hypot(mx - 人物x, my - 人物y) for (name,mx, my) in 怪物列表_不包括宝宝]
+                        最近怪物 = 怪物列表_不包括宝宝[np.argmin(怪物距离)]
+                        bad_cells.add(最近怪物)
+                        # print('bad_cells',bad_cells)
+                        name ,最近x, 最近y = 最近怪物
+
                         if config.DEBUG_LOG:
-                            print('人物卡在门口,把宝宝和怪物分开了,宝宝不能打怪')
-                        人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
-                        frame,_  = 寻路.更新地图_怪物点(self.大漠对象,打怪控制)
-                        safe_point = ai算法.next_move_a((人物x, 人物y), frame, (人物x, 人物y), None, 1)
+                            print('最近怪:', name, 最近x, 最近y)
+
+                        # A星寻路算法算出路线path
+                        path = ai算法.a_star_eight(人物x, 人物y, 最近x, 最近y,frame,1,1,11,0.001,11)
                         if config.DEBUG_LOG:
-                            print('宝宝在身边未攻击次数大于5后安全点坐标', safe_point)
-                        if 'safe_point' not in locals():
-                            raise ValueError("宝宝在身边未攻击次数")
-                        path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 1, 1, 1, 1)
+                            print('最近怪寻路路径', path)
+
+                        # 沿着寻路路径开始寻路
+                        ret_path_list = 寻路.walk_path(
+                                        path,
+                                        img=map_img,
+                                        dm=self.大漠对象,
+                                        get_pos=dm_utils.ocr_player_pos,
+                                        controller=打怪控制,
+                                        bad_cells=bad_cells,
+                                        stop_event=(打怪_stop_event, 血量_打怪_stop_event),
+                                        small_area_checker=寻路.small_area_checker,
+                                        end_threshold=1,
+                                        reach_threshold=1,
+                                        right_only=True,
+                                        pursuit_mode=True,
+                                        update_map_fn=寻路.更新地图_怪物点,
+                                    )
+
+                        if 打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
+                            continue
+
+                        打怪控制.随机延时(400, 600)
+                        # F3隐身,让怪物不要攻击自己
+                        打怪控制.键盘点击(60)
+                        打怪控制.随机延时(1200, 1300)
+                        # 宝宝在人物一边,怪物在人物另一边,宝宝和怪物被人物隔开了,比如人物要进门打怪,但是人物卡在了门口
+                        if self.宝宝在身边未攻击次数 > 5:
+                            if config.DEBUG_LOG:
+                                print('人物卡在门口,把宝宝和怪物分开了,宝宝不能打怪')
+                            人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
+                            frame,_  = 寻路.更新地图_怪物点(self.大漠对象,打怪控制,map_img)
+                            safe_point = ai算法.next_move_a((人物x, 人物y), frame, (人物x, 人物y), None, 1)
+                            if config.DEBUG_LOG:
+                                print('宝宝在身边未攻击次数大于5后安全点坐标', safe_point)
+                            if 'safe_point' not in locals():
+                                raise ValueError("宝宝在身边未攻击次数")
+                            path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 1, 1, 1, 1)
+                            寻路.walk_path(
+                                path,
+                                img=map_img,
+                                dm=self.大漠对象,
+                                get_pos=dm_utils.ocr_player_pos,
+                                controller=打怪控制,
+                                bad_cells=bad_cells,
+                                stop_event=(打怪_stop_event, 血量_打怪_stop_event),
+                                end_threshold = 1,
+                                repath_interval = 1,
+                            )
+
+                            if 打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
+                                continue
+
+                        # 宝宝不在人物一格范围内就召唤
+                        self.召唤宝宝()
+                        self.拾取物品(map_img)
+                        if 打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
+                                continue
+                        self.fighting(627, 106, 1300, 712)
+                        打怪控制.延时(1000)  # 给物品找图时间(物品掉落延迟)
+                        self.拾取物品(map_img)
+                        if 打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
+                                continue
+                    # 找图发现周围没有怪后的操作
+                    else:
+                        人物x,人物y = dm_utils.ocr_player_pos(self.大漠对象)
+                        # point = [(80,8),(58,8),(6,20),(9,65)]
+                        point = [(18,141),(236,60),(72,357),(265,309)]
+                        i = random.randint(0, 3)
+                        frame,_  = 寻路.更新地图_怪物点(self.大漠对象,打怪控制,map_img)
+                        path = ai算法.a_star_eight(人物x, 人物y, point[i][0], point[i][1], frame, 2, 1, 1, 2, 1)
+                        print('周围没有怪了,前往下一个打怪点\n',path)
+                        ai_visual.visualize_grid_and_path(frame, path, "test1", 1, center_pos=(人物x, 人物y), view_range=None)
+                        cv2.waitKey(1)
                         寻路.walk_path(
                             path,
+                            img=map_img,
                             dm=self.大漠对象,
                             get_pos=dm_utils.ocr_player_pos,
                             controller=打怪控制,
                             bad_cells=bad_cells,
-                            stop_event=(监控_打怪_stop_event, 血量_stop_event, 血量_打怪_stop_event),
-                            end_threshold = 1,
-                            repath_interval = 1,
+                            stop_event=(打怪_stop_event, 血量_打怪_stop_event),
+                            small_area_checker=寻路.small_area_checker,
+                            big_area_checker=寻路.big_area_checker,
+                            end_threshold=1,
+                            reach_threshold=1,
+                            right_only=True,
+                            pursuit_mode=True,
+                            update_map_fn=寻路.更新地图_怪物点,
                         )
 
-                        if 监控_打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
-                            continue
+                    打怪控制.延时(10)
+                except RestartLoop:
+                    打怪_stop_event.clear()  # 改: 清掉重启标记，回到循环头
+                    血量_打怪_stop_event.clear()
+                    打怪控制.right_up()  # 改: 防止右键卡住
+                    continue
+                except Exception as e:
+                    continue
 
-                    # 宝宝不在人物一格范围内就召唤
-                    self.召唤宝宝()
-                    self.拾取物品()
-                    if 监控_打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
-                            continue
-                    self.fighting(627, 106, 1300, 712)
-                    打怪控制.延时(1000)  # 给物品找图时间(物品掉落延迟)
-                    self.拾取物品()
-                    if 监控_打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
-                            continue
-                # 找图发现周围没有怪后的操作
-                else:
-                    人物x,人物y = dm_utils.ocr_player_pos(self.大漠对象)
-                    # point = [(80,8),(58,8),(6,20),(9,65)]
-                    point = [(18,141),(236,60),(72,357),(265,309)]
-                    i = random.randint(0, 3)
-                    frame,_  = 寻路.更新地图_怪物点(self.大漠对象,打怪控制)
-                    path = ai算法.a_star_eight(人物x, 人物y, point[i][0], point[i][1], frame, 2, 1, 1, 2, 1)
-                    print('周围没有怪了,前往下一个打怪点\n',path)
-                    ai_visual.visualize_grid_and_path(frame, path, "test1", 1, center_pos=(人物x, 人物y), view_range=None)
-                    cv2.waitKey(1)
-                    寻路.walk_path(
-                        path,
-                        dm=self.大漠对象,
-                        get_pos=dm_utils.ocr_player_pos,
-                        controller=打怪控制,
-                        bad_cells=bad_cells,
-                        stop_event=(监控_打怪_stop_event, 血量_stop_event, 血量_打怪_stop_event),
-                        small_area_checker=寻路.small_area_checker,
-                        big_area_checker=寻路.big_area_checker,
-                        end_threshold=1,
-                        reach_threshold=1,
-                        right_only=True,
-                        pursuit_mode=True,
-                        update_map_fn=寻路.更新地图_怪物点,
-                    )
-
-                打怪控制.延时(10)
             print('退出打怪循环')
             cv2.destroyAllWindows()
         except Exception as e:
@@ -508,9 +579,9 @@ class WorkerThread(QThread):
         查找宝宝计次 = 0
         宝宝周围未找到怪物计次 = 0
         for i in range(5000):
-            if 监控_打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
+            if 打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
                 print('恢复打怪线程,退出宝宝检测是否战斗中循环')
-                break
+                raise RestartLoop()  # 改: 被抢占后强制回到主循环头
             宝宝列表 = list()
             宝宝 = list()
             宝宝攻击范围 = [None, None, None, None]  # 0,1是左上角坐标.2,3是右下角坐标
@@ -584,8 +655,9 @@ class WorkerThread(QThread):
 
     def 召唤宝宝(self):
         print('召唤宝宝')
+        global map_path
         for i in range(3):
-            if 监控_打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
+            if 打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
                 break
             返回_找图AIEx = self.大漠对象.AiFindPicEx(842,358, 1082,519, config.PET_PIC_PATH, config.PET_PIC_SIM, 0)
             # 返回_找图AIEx = self.大漠对象.AiFindPicEx(842,358, 1082,519, r"./pic/guaiwu/单机_宝宝.bmp", 0.6, 0)
@@ -601,21 +673,23 @@ class WorkerThread(QThread):
         else:
             print('3次找图没有找到宝宝,这里不能召唤宝宝,移动人物换个地方召唤')
             人物x,人物y = dm_utils.ocr_player_pos(self.大漠对象)
-            frame,_  = 寻路.更新地图_怪物点(self.大漠对象,打怪控制)
+            map_img = cv2.imread(map_path)
+            frame,_  = 寻路.更新地图_怪物点(self.大漠对象,打怪控制,map_img)
             safe_point = ai算法.next_move_a((人物x, 人物y), frame, (人物x, 人物y), None,1)
             path = ai算法.a_star_eight(人物x, 人物y, safe_point[0], safe_point[1], frame, 1, 1, 1, 1, 1)
             寻路.walk_path(
                 path,
+                img=map_img,
                 dm=self.大漠对象,
                 get_pos=dm_utils.ocr_player_pos,
                 controller=打怪控制,
                 bad_cells=bad_cells,
-                stop_event=(监控_打怪_stop_event, 血量_stop_event)
+                stop_event=(打怪_stop_event, 血量_打怪_stop_event)
             )
             self.召唤宝宝()
 
 
-    def 拾取物品(self):
+    def 拾取物品(self,img):
         global wupin_list
         物品游戏坐标列表 = LootFeature().run_loop(self.大漠对象, 164, 117, 1896, 816, 控制器=打怪控制)
         print("物品游戏坐标列表:",物品游戏坐标列表)
@@ -627,19 +701,20 @@ class WorkerThread(QThread):
                 物品坐标x = 物品[0]
                 物品坐标y = 物品[1]
                 人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
-                frame,_  = 寻路.更新地图_怪物点(self.大漠对象, 打怪控制)
+                frame,_  = 寻路.更新地图_怪物点(self.大漠对象, 打怪控制,img)
                 path = ai算法.a_star_eight(人物x, 人物y, 物品坐标x, 物品坐标y, frame, 1, 0, 0, 0.001, 0)
                 寻路.walk_path(
                     path,
+                    img=img,
                     dm=self.大漠对象,
                     get_pos=dm_utils.ocr_player_pos,
                     controller=打怪控制,
                     bad_cells=bad_cells,
-                    stop_event=(监控_打怪_stop_event, 血量_stop_event, 血量_打怪_stop_event),
+                    stop_event=(打怪_stop_event, 血量_打怪_stop_event),
                     end_threshold=0,
                     repath_interval=1,
                 )
-                if 监控_打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
+                if 打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
                     return
                 人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
                 if 人物x == 物品坐标x and 人物y == 物品坐标y:
@@ -663,6 +738,7 @@ class WorkerThread(QThread):
         else:                       # 既不是不可捡取也不是已捡取, 进一步判断是否背包已满
             打怪控制.键盘点击(41)               # esc
             打怪控制.键盘点击(66)               # F9
+            打怪控制.延时(1000)
             z, x, y = self.大漠对象.AiFindPic(*config.正常_背包整理区域)
             if z != -1:
                 打怪控制._move_with_click("left",x,y,0,5,0,5)   # 点击整理背包
@@ -676,11 +752,6 @@ class WorkerThread(QThread):
                     打怪控制.延时(1000)
                     打怪控制.键盘点击(30)
                     print("背包已满, 点击回城卷")
-                    血量_监控_event.clear()
-                    打怪控制.延时(2000)
-                    img = cv2.imread(config.map_dict["盟重省"])
-                    self.回城操作(img,打怪控制)
-                    血量_监控_event.set()
         return 0
 
 
@@ -688,12 +759,12 @@ class WorkerThread(QThread):
         人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
         目标x,目标y = Npc.MengZhong[npc]
         path = ai算法.a_star_eight(人物x,人物y,目标x,目标y,img,1,1)
-        寻路.walk_path(path,dm=self.大漠对象,get_pos=dm_utils.ocr_player_pos,controller=控制器,right_only=True,end_threshold=5,reach_threshold=3)
+        寻路.walk_path(path,img=img,dm=self.大漠对象,get_pos=dm_utils.ocr_player_pos,controller=控制器,right_only=True,end_threshold=5,reach_threshold=3)
 
         控制器.延时(1000)
-        人物x,人物y = dm_utils.ocr_player_pos(self.大漠对象)
         # 打开组合回收界面
         while True:
+            人物x,人物y = dm_utils.ocr_player_pos(self.大漠对象)
             x,y = 游戏坐标转换屏幕坐标(人物x,人物y,*Npc.MengZhong[npc])
             for i in range(3):
                 控制器._move_with_click("left",x,y,0,3,0,2)
@@ -745,20 +816,21 @@ class WorkerThread(QThread):
                 控制器._move_with_click("left",x,y,0,3,0,2)
 
             time.sleep(1)
-            # 右键逐个点击背包, 把背包所有东西放入仓库
-            x = 1603                # 仓库存放时打开背包的第一个格子的中心x
-            y = 148                 # 仓库存放时打开背包的第一个格子的中心y
-            for i in range(5):
-                x = 1603
-                if i != 0:
-                    y += 32         # 背包上下格子的间隔
-                for j in range(8):
-                    offset_x = random.randint(-8,8)
-                    offset_y = random.randint(-8,8)
-                    控制器.simple_move_with_right_click(x+offset_x,y+offset_y)
-                    x += 36         # 背包左右格子的间隔
+            # # 右键逐个点击背包, 把背包所有东西放入仓库
+            # x = 1603                # 仓库存放时打开背包的第一个格子的中心x
+            # y = 148                 # 仓库存放时打开背包的第一个格子的中心y
+            # for i in range(5):
+            #     x = 1603
+            #     if i != 0:
+            #         y += 32         # 背包上下格子的间隔
+            #     for j in range(8):
+            #         offset_x = random.randint(-8,8)
+            #         offset_y = random.randint(-8,8)
+            #         控制器.simple_move_with_right_click(x+offset_x,y+offset_y)
+            #         x += 36         # 背包左右格子的间隔
 
             # 前往并打开下图的NPC
+            控制器.键盘点击(41)  # esc
             x, y = self.前往NPC("散人之家", 控制器, img, config.进入散人之家区域)
             # 点击下图
             控制器._move_with_click("left",x,y,0,5,0,2)
@@ -1179,7 +1251,7 @@ class MyWindow(QMainWindow):
         print("起点",人物x,人物y)
         目标x, 目标y = Npc.MengZhong[npc]
         path = ai算法.a_star_eight(人物x, 人物y, 目标x, 目标y, img, 1, 1)
-        寻路.walk_path(path, dm=dms_a[0], get_pos=dm_utils.ocr_player_pos, controller=控制器,
+        寻路.walk_path(path, img=img,dm=dms_a[0], get_pos=dm_utils.ocr_player_pos, controller=控制器,
                        right_only=True, end_threshold=5, reach_threshold=3,pursuit_mode=True)
 
         控制器.延时(1000)
@@ -1263,7 +1335,8 @@ class MyWindow(QMainWindow):
             # 测试在盟重地图躲避玩家
             dms_a[0].UseDict(2)
             s1 = time.perf_counter()
-            frame,players = 寻路.update_map_fn(dms_a[0],监控控制)
+            img = cv2.imread(config.map_dict["盟重省"])
+            frame,players = 寻路.update_map_fn(dms_a[0],监控控制,img)
             e1 = time.perf_counter()
             print("更新地图耗时:",e1-s1)
             人物x, 人物y = dm_utils.ocr_player_pos(dms_a[0])
@@ -1291,6 +1364,7 @@ class MyWindow(QMainWindow):
                     ai_visual.visualize_grid_and_path(frame, path=path, win_name="path", cell_size=15, center_pos=(人物x, 人物y),view_range=25)
                     ret_path_list = 寻路.walk_path(
                         path,
+                        img = frame,
                         dm=dms_a[0],
                         get_pos=dm_utils.ocr_player_pos,
                         controller=监控控制,
