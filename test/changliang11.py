@@ -15,6 +15,6 @@ class changliang():
     mix_red1 = np.array([170, 225, 150])
 
     max_red2 = np.array([10, 255, 255])
-    mix_red2 = np.array([0, 225, 150])
+    mix_red2 = np.array([0, 215, 150])
 
 

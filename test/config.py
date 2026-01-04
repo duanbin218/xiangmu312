@@ -9,7 +9,7 @@ DEBUG_LOG = True  # 调试输出开关，默认保持现有打印行为
 
 MONSTER_LIST_PATH = "./pic/guaiwu/longteng.txt"
 ITEM_NAME_PATH = "./物品名字.txt"
-ITEM_NAME_EXTRA = "士头|除魔|聚灵珠（小）|魔血石"
+ITEM_NAME_EXTRA = "士头|除魔|聚灵珠（小）|魔血石|金条"
 ITEM_TEXT_COLOR = "ffffff-000000"  # 物品找字颜色阈值，便于统一调整
 PET_PIC_PATH = "./pic/guaiwu/宝宝.bmp"
 TEMP_CAPTURE_BMP = "temp_img.bmp"
