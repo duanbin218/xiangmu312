@@ -269,7 +269,7 @@ def walk_path(
     end_threshold: int = 0,  # 到达终点的距离阈值（切比雪夫距离）；0 表示必须精确踩到终点
     reach_threshold: int = 0,  # 到达“下一个路径点”的距离阈值；满足后 idx 才会推进到下一个点
     max_lookahead: int = 6,  # 纠偏窗口：从当前 idx 起向前最多看 N 个点，选一个离当前位置最近的点作为新 idx
-    sleep_interval: float = 0.05,  # 每次发出移动指令后的间隔（秒）；越小越灵敏但可能抖动/更吃 CPU
+    sleep_interval: float = 50,  # 每次发出移动指令后的间隔（秒）；越小越灵敏但可能抖动/更吃 CPU
     dynamic_repath: bool = False,  # 是否动态重寻路：边走边用 update_map_fn 刷新地图，并重新算更安全的目标/路径
     repath_interval: float = 0.5,  # 动态重寻路最小间隔（秒）；避免过于频繁地刷新/重算
     repath_radius: Optional[int] = None,  # 动态重寻路 safe_point 的搜索半径（格子）；None 则使用配置默认值
@@ -290,10 +290,8 @@ def walk_path(
     """
     统一的沿路径行走逻辑。允许注入坐标获取、控制器、地图更新与终止事件，便于多线程复用。
     """
-    if controller is None:  # 外部没传控制器时，默认用“监控控制”（避免 None 导致调用失败）
-        controller = 监控控制  # 监控控制里封装了方位判断、鼠标按下/抬起、左键点方向等动作
 
-    owner_acquired = controller.acquire_input_owner()  # 改: 寻路期间独占输入，避免多线程抢占
+    owner_acquired = False
 
     if bad_cells is None:
         bad_cells = set()
@@ -334,6 +332,8 @@ def walk_path(
         else:
             print("警告: 人物与路径起点偏差太大，视为无效路径，退出，让上层重新算")  # 交给上层重新 A* 规划
             return  # 直接退出，不做“强行追起点”的移动
+
+    owner_acquired = controller.acquire_input_owner()  # 改: 寻路期间独占输入，避免多线程抢占
 
     next_move_cfg = Parameter.Ai.next_move  # next_move（安全点/逃离点）相关配置
 

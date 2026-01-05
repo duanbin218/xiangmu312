@@ -145,7 +145,7 @@ class 找字找物:
                 物品屏幕x + off_x,
                 物品屏幕y + off_y,
             )
-            out_set.add((物品名称, (物品游戏x, 物品游戏y)))
+            out_set.add((物品游戏x, 物品游戏y))
 
     def _处理单色mask(
         self,
@@ -189,8 +189,6 @@ class 找字找物:
             dm.Capture(x1,y1,x2,y2, img_path)
 
             人物x,人物y = dm_utils.ocr_player_pos(dm)
-            if config.DEBUG_LOG:
-                print(人物x,人物y)
             if 人物x < 0 or 人物y < 0:
                 # OCR 坐标无效时直接返回,避免坐标换算错误
                 return set()
@@ -241,15 +239,29 @@ class 找字找物:
                 # 异常也要恢复屏幕输入，避免影响后续识别
                 dm.SetDisplayInput(config.DISPLAY_INPUT_SCREEN)
 
+            最近物品坐标 = None
+            if 物品游戏坐标列表:
+                # 取离人物坐标最近的物品坐标，便于快速拾取
+                最小距离平方 = None
+                for (物品x, 物品y) in 物品游戏坐标列表:
+                    dx = 物品x - 人物x
+                    dy = 物品y - 人物y
+                    距离平方 = dx * dx + dy * dy
+                    if 最小距离平方 is None or 距离平方 < 最小距离平方:
+                        最小距离平方 = 距离平方
+                        最近物品坐标 = (物品x, 物品y)
+
             ee = time.perf_counter()
             t = ee - s
             if config.DEBUG_LOG:
                 print('找物品用时:', t)
                 print(物品游戏坐标列表)
-            return 物品游戏坐标列表
+                print('最近物品坐标:', 最近物品坐标)
+            return 物品游戏坐标列表, 最近物品坐标
         except Exception as e:
             print(repr(e))
             traceback.print_exc()
+            return set(), None
 
 
 

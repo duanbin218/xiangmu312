@@ -7,7 +7,7 @@ class changliang():
     max_green = np.array([65, 255, 255])
     mix_green = np.array([55,205,150])
 
-    max_blue = np.array([104, 210, 251])
+    max_blue = np.array([104, 215, 251])
     # 不包括中间透明公告栏的颜值范围 90, 109, 140
     mix_blue = np.array([78,96,111])            # 包括中间透明公告栏的颜色范围 78,96,111
 

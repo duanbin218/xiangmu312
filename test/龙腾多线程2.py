@@ -82,7 +82,7 @@ class WorkerThread(QThread):
     def __init__(self,大漠对象,句柄,线程名):
         super().__init__()
         self.大漠对象 = 大漠对象
-        设置字库(大漠对象)
+        设置字库(self.大漠对象)
         self.句柄 = 句柄
         self.线程名 = 线程名
         # self.map_img = cv2.imread(config.MAP_IMAGE_PATH)
@@ -120,37 +120,53 @@ class WorkerThread(QThread):
                 if z != -1:
                     if not 接管中:
                         mark_walk_stopped(打怪_stop_event, 血量_stop_event, 监控_stop_event)  # 改: 先打标记再暂停
-                        打怪_血量_监控_event.clear()
-                        界面控制.acquire_input_owner()  # 改: 接管时独占输入
-                        接管中 = True
-                        盟重已处理 = False
-                    界面控制.move_with_left_click(x,y,0,5,0,3)
-                    界面控制.延时(2000)
+                        acquired = 界面控制.acquire_input_owner(timeout=0.2)  # 改: 接管时独占输入
+                        if acquired:
+                            打怪_血量_监控_event.clear()
+                            接管中 = True
+                    if 接管中:
+                        界面控制.move_with_left_click(x,y,0,5,0,3)
+                        界面控制.延时(2000)
+                    盟重已处理 = False
                 z, x, y = self.大漠对象.AiFindPic(*config.确定区域)
                 if z != -1:
                     if not 接管中:
                         mark_walk_stopped(打怪_stop_event, 血量_stop_event, 监控_stop_event)  # 改: 先打标记再暂停
-                        打怪_血量_监控_event.clear()
-                        界面控制.acquire_input_owner()  # 改: 接管时独占输入
-                        接管中 = True
-                        盟重已处理 = False
-                    界面控制.move_with_left_click(x,y,0,5,0,3)
-                    界面控制.延时(2000)
+                        acquired = 界面控制.acquire_input_owner(timeout=0.2)  # 改: 接管时独占输入
+                        if acquired:
+                            打怪_血量_监控_event.clear()
+                            接管中 = True
+                    if 接管中:
+                        界面控制.move_with_left_click(x,y,0,5,0,3)
+                        界面控制.延时(2000)
+                    盟重已处理 = False
                 z, x, y = self.大漠对象.AiFindPic(*config.游戏中标志区域)
                 if z != -1:
+                    # print(f"[界面] 游戏中标志 z={z} x={x} y={y}")
                     map_name = self.识别地图()
                     map_path_new = config.map_dict.get(map_name)  # 改: OCR 异常时避免 KeyError
+                    # print(f"[界面] OCR raw={map_name!r} map_path_new={map_path_new}")
                     if map_path_new:
                         map_path = map_path_new
+
+                    if map_name == "武器店":
+                        界面控制.延时(3000)
+                        if map_name == "武器店":
+                            界面控制.键盘点击(41)
+                            界面控制.延时(1000)
+                            界面控制.键盘点击(30)
+                            界面控制.延时(3000)
 
                     if map_name == "盟重省":
                         if not 接管中:
                             mark_walk_stopped(打怪_stop_event, 血量_stop_event, 监控_stop_event)  # 改: 先打标记再暂停
-                            打怪_血量_监控_event.clear()
-                            界面控制.acquire_input_owner()  # 改: 接管时独占输入
-                            接管中 = True
-                            盟重已处理 = False
-                        if not 盟重已处理:
+                            acquired = 界面控制.acquire_input_owner(timeout=0.2)  # 改: 接管时独占输入
+                            if acquired:
+                                打怪_血量_监控_event.clear()
+                                print("界面线程接管中")
+                                接管中 = True
+                                盟重已处理 = False
+                        if 接管中 and not 盟重已处理:
                             if map_path_new:
                                 img = cv2.imread(map_path_new)
                                 self.回城操作(img,界面控制)
@@ -158,12 +174,32 @@ class WorkerThread(QThread):
                     else:
                         盟重已处理 = False
                         if 接管中 and map_path_new:
+                            print("界面线程释放接管")
                             打怪_血量_监控_event.set()  # 改: 满足“游戏中标志+非盟重”后恢复
                             接管中 = False
                             if 界面控制.is_input_owner():
                                 界面控制.right_up()  # 改: 仅在拥有输入时收尾
                                 界面控制.release_input_owner()
-                # 游戏中标志未出现时，如果已接管则保持暂停（不做恢复）
+                else:
+                    print("未找到游戏中标志图像")
+
+                当前血量, 最大血量 = dm_utils.ocr_hp(self.大漠对象)
+                # print(当前血量, 最大血量)
+                if 当前血量 == 0:
+                    mark_walk_stopped(打怪_stop_event, 血量_stop_event, 监控_stop_event)  # 改: 先打标记再暂停
+                    acquired = 界面控制.acquire_input_owner(timeout=0.2)  # 改: 接管时独占输入
+                    if acquired:
+                        打怪_血量_监控_event.clear()
+                        print("界面线程接管中")
+                        print("人物已死亡,需要重新登录游戏")
+                        界面控制.move_with_left_click(1649, 939, -3, 3, -3, 3)  # 退出游戏out按钮位置
+                        界面控制.延时(3000)
+                        界面控制.move_with_left_click(984, 590, -5, 5, -5, 5)  # 退出游戏确定按钮位置
+                        界面控制.延时(1000)
+                        打怪_血量_监控_event.set()
+                        界面控制.release_input_owner()
+
+                    # 游戏中标志未出现时，如果已接管则保持暂停（不做恢复）
                 界面控制.延时(100)
 
             except Exception as e:
@@ -290,13 +326,9 @@ class WorkerThread(QThread):
                     当前血量, 最大血量 = dm_utils.ocr_hp(self.大漠对象)
                     self.jiankong.emit(f"当前血量:{当前血量}|最大血量:{最大血量}")
 
-                    if 当前血量 == 0:
-                        self.jiankong.emit("人物已死亡,需要重新登录游戏")
-                        time.sleep(0.1)
-                        continue
                     if 当前血量 < 0 or 最大血量 <= 0:
                         # OCR 失败或分母异常时跳过本轮，避免误判与除零
-                        time.sleep(0.1)
+                        血量控制.延时(100)
                         continue
 
                     血量比例 = 当前血量/最大血量
@@ -351,7 +383,7 @@ class WorkerThread(QThread):
                             if bin_safe_point is not None:
 
                                 frame,_  = 寻路.更新地图_怪物点(self.大漠对象,血量控制,map_img)
-                                path = ai算法.a_star_eight(人物x, 人物y, bin_safe_point[0],bin_safe_point[1] ,frame,1,0,1,1,1)
+                                path = ai算法.a_star_eight(人物x, 人物y, bin_safe_point[0],bin_safe_point[1] ,frame,1,0,11,0.001,11)
                                 print("血量线程安全坐标点:",bin_safe_point)
                                 # 围绕着宝宝或者人物坐标点移动到安全位置
                                 if path is not None :
@@ -412,6 +444,7 @@ class WorkerThread(QThread):
             set_thread_restart_events(打怪_stop_event, 血量_打怪_stop_event)  # 改: 注册打怪线程的重启事件
             while True:
                 try:
+                    print("打怪循环头")
                     打怪控制.延时(0)  # 改: 统一等待运行事件，暂停时不往下跑
                     if 打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
                         raise RestartLoop()  # 改: 被抢占后强制回到循环头
@@ -494,6 +527,7 @@ class WorkerThread(QThread):
                         打怪控制.随机延时(1200, 1300)
                         # 宝宝在人物一边,怪物在人物另一边,宝宝和怪物被人物隔开了,比如人物要进门打怪,但是人物卡在了门口
                         if self.宝宝在身边未攻击次数 > 5:
+                            self.宝宝在身边未攻击次数 = 0
                             if config.DEBUG_LOG:
                                 print('人物卡在门口,把宝宝和怪物分开了,宝宝不能打怪')
                             人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
@@ -524,7 +558,7 @@ class WorkerThread(QThread):
                         self.拾取物品(map_img)
                         if 打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
                                 continue
-                        self.fighting(627, 106, 1300, 712)
+                        self.fighting(150,119,1719,867)    # 627, 106, 1300, 712
                         打怪控制.延时(1000)  # 给物品找图时间(物品掉落延迟)
                         self.拾取物品(map_img)
                         if 打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
@@ -536,7 +570,7 @@ class WorkerThread(QThread):
                         point = [(18,141),(236,60),(72,357),(265,309)]
                         i = random.randint(0, 3)
                         frame,_  = 寻路.更新地图_怪物点(self.大漠对象,打怪控制,map_img)
-                        path = ai算法.a_star_eight(人物x, 人物y, point[i][0], point[i][1], frame, 2, 1, 1, 2, 1)
+                        path = ai算法.a_star_eight(人物x, 人物y, point[i][0], point[i][1], frame, 2, 2, 11, 0.001, 11)
                         print('周围没有怪了,前往下一个打怪点\n',path)
                         ai_visual.visualize_grid_and_path(frame, path, "test1", 1, center_pos=(人物x, 人物y), view_range=None)
                         cv2.waitKey(1)
@@ -686,39 +720,115 @@ class WorkerThread(QThread):
                 bad_cells=bad_cells,
                 stop_event=(打怪_stop_event, 血量_打怪_stop_event)
             )
-            self.召唤宝宝()
+            return  # 人物如果走动了, 说明怪物在人物身边(safe_point通过怪物危险值获取到了可移动的点), 人物如果没走动, 回到上层,找最近怪使人物进行移动
 
 
     def 拾取物品(self,img):
         global wupin_list
-        物品游戏坐标列表 = LootFeature().run_loop(self.大漠对象, 164, 117, 1896, 816, 控制器=打怪控制)
-        print("物品游戏坐标列表:",物品游戏坐标列表)
-        if 物品游戏坐标列表:
-            for 物品 in 物品游戏坐标列表:
-                print("正在拾取物品")
-                if 物品 in wupin_list:
+        def 解析物品坐标(物品):
+            # 兼容 (物品名称,(x,y)) 和 (x,y) 两种结构
+            if isinstance(物品, (tuple, list)) and len(物品) == 2 and isinstance(物品[1], (tuple, list)) and len(物品[1]) >= 2:
+                try:
+                    return int(物品[1][0]), int(物品[1][1])
+                except (TypeError, ValueError):
+                    return None
+            if isinstance(物品, (tuple, list)) and len(物品) >= 2:
+                try:
+                    return int(物品[0]), int(物品[1])
+                except (TypeError, ValueError):
+                    return None
+            return None
+
+        def 选择最近可用物品(物品列表, 人物x, 人物y, 跳过集合):
+            # 从列表里挑最近且可用的物品坐标
+            最近坐标 = None
+            最小距离平方 = None
+            for 物品 in 物品列表:
+                坐标 = 解析物品坐标(物品)
+                if 坐标 is None:
                     continue
-                物品坐标x = 物品[0]
-                物品坐标y = 物品[1]
-                人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
-                frame,_  = 寻路.更新地图_怪物点(self.大漠对象, 打怪控制,img)
-                path = ai算法.a_star_eight(人物x, 人物y, 物品坐标x, 物品坐标y, frame, 1, 0, 0, 0.001, 0)
-                寻路.walk_path(
-                    path,
-                    img=img,
-                    dm=self.大漠对象,
-                    get_pos=dm_utils.ocr_player_pos,
-                    controller=打怪控制,
-                    bad_cells=bad_cells,
-                    stop_event=(打怪_stop_event, 血量_打怪_stop_event),
-                    end_threshold=0,
-                    repath_interval=1,
-                )
-                if 打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
-                    return
-                人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
-                if 人物x == 物品坐标x and 人物y == 物品坐标y:
-                    self.物品捡取状态(物品坐标x,物品坐标y)
+                if 坐标 in 跳过集合 or 坐标 in wupin_list:
+                    continue
+                dx = 坐标[0] - 人物x
+                dy = 坐标[1] - 人物y
+                距离平方 = dx * dx + dy * dy
+                if 最小距离平方 is None or 距离平方 < 最小距离平方:
+                    最小距离平方 = 距离平方
+                    最近坐标 = 坐标
+            return 最近坐标
+
+        # 物品游戏坐标列表 = LootFeature().run_loop(self.大漠对象, 164, 117, 1896, 816, 控制器=打怪控制)       # 通过颜色找物品
+        物品游戏坐标列表, _ = 找字找物().找物(self.大漠对象,打怪控制,14,25,1895,826)    # 14,25,1895,826|828,308,1098,571
+        # 失败次数/超时用于跳过不可达目标，避免死循环
+        跳过物品坐标 = set()
+        目标失败次数 = {}
+        最大失败次数 = 3
+        目标超时秒 = 5.0
+        当前目标坐标 = None
+        目标开始时间 = None
+        if 物品游戏坐标列表:
+            人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
+            if 人物x < 0 or 人物y < 0:
+                return
+            最近物品坐标 = 选择最近可用物品(物品游戏坐标列表, 人物x, 人物y, 跳过物品坐标)
+        else:
+            最近物品坐标 = None
+        while 最近物品坐标:
+            if 打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
+                return
+            if 当前目标坐标 != 最近物品坐标:
+                当前目标坐标 = 最近物品坐标
+                目标开始时间 = time.perf_counter()
+            人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
+            if 人物x < 0 or 人物y < 0:
+                return
+            frame, _ = 寻路.更新地图_怪物点(self.大漠对象, 打怪控制, img)
+            path = ai算法.a_star_eight(人物x, 人物y, 最近物品坐标[0], 最近物品坐标[1], frame, 1, 0, 0, 0.001, 0)
+            if not path:
+                # 无路可走，计失败并跳过
+                目标失败次数[当前目标坐标] = 目标失败次数.get(当前目标坐标, 0) + 1
+                if 目标失败次数[当前目标坐标] >= 最大失败次数:
+                    跳过物品坐标.add(当前目标坐标)
+                    当前目标坐标 = None
+                物品游戏坐标列表, _ = 找字找物().找物(self.大漠对象, 打怪控制, 828,308,1098,571)
+                if 物品游戏坐标列表:
+                    最近物品坐标 = 选择最近可用物品(物品游戏坐标列表, 人物x, 人物y, 跳过物品坐标)
+                else:
+                    最近物品坐标 = None
+                continue
+            寻路.walk_path(
+                path,
+                img=img,
+                dm=self.大漠对象,
+                get_pos=dm_utils.ocr_player_pos,
+                controller=打怪控制,
+                bad_cells=bad_cells,
+                stop_event=(打怪_stop_event, 血量_打怪_stop_event),
+                end_threshold=0,
+                repath_interval=1,
+            )
+            if 打怪_stop_event.is_set() or 血量_打怪_stop_event.is_set():
+                return
+            人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
+            if 人物x < 0 or 人物y < 0:
+                return
+            if 人物x == 最近物品坐标[0] and 人物y == 最近物品坐标[1]:
+                self.物品捡取状态(最近物品坐标[0], 最近物品坐标[1])
+                当前目标坐标 = None
+                目标开始时间 = None
+            else:
+                # 未到达则判断是否超时，超时后计失败并跳过
+                if 目标开始时间 is not None and time.perf_counter() - 目标开始时间 >= 目标超时秒:
+                    目标失败次数[当前目标坐标] = 目标失败次数.get(当前目标坐标, 0) + 1
+                    if 目标失败次数[当前目标坐标] >= 最大失败次数:
+                        跳过物品坐标.add(当前目标坐标)
+                        当前目标坐标 = None
+                    目标开始时间 = None
+            物品游戏坐标列表, _ = 找字找物().找物(self.大漠对象, 打怪控制, 828,308,1098,571)
+            if 物品游戏坐标列表:
+                最近物品坐标 = 选择最近可用物品(物品游戏坐标列表, 人物x, 人物y, 跳过物品坐标)
+            else:
+                最近物品坐标 = None
 
 
     def 物品捡取状态(self,物品坐标x,物品坐标y):
@@ -741,7 +851,7 @@ class WorkerThread(QThread):
             打怪控制.延时(1000)
             z, x, y = self.大漠对象.AiFindPic(*config.正常_背包整理区域)
             if z != -1:
-                打怪控制._move_with_click("left",x,y,0,5,0,5)   # 点击整理背包
+                打怪控制._move_with_click("left",x,y,0,5,0,5)   # 点击整理背包````````````````````````````````````
                 打怪控制.延时(1000)
                 z, x, y = self.大漠对象.AiFindPic(*config.背包状态区域)
                 if z != -1:
@@ -759,13 +869,17 @@ class WorkerThread(QThread):
         人物x, 人物y = dm_utils.ocr_player_pos(self.大漠对象)
         目标x,目标y = Npc.MengZhong[npc]
         path = ai算法.a_star_eight(人物x,人物y,目标x,目标y,img,1,1)
-        寻路.walk_path(path,img=img,dm=self.大漠对象,get_pos=dm_utils.ocr_player_pos,controller=控制器,right_only=True,end_threshold=5,reach_threshold=3)
 
         控制器.延时(1000)
-        # 打开组合回收界面
+        # 前往并打开NPC
         while True:
+            zz, xx, yy = self.大漠对象.AiFindPic(*config.开始区域)
+            if zz != -1:
+                return
+            寻路.walk_path(path,img=img,dm=self.大漠对象,get_pos=dm_utils.ocr_player_pos,controller=控制器,right_only=True,end_threshold=5,reach_threshold=3)
             人物x,人物y = dm_utils.ocr_player_pos(self.大漠对象)
             x,y = 游戏坐标转换屏幕坐标(人物x,人物y,*Npc.MengZhong[npc])
+            # 打开NPC
             for i in range(3):
                 控制器._move_with_click("left",x,y,0,3,0,2)
                 z1, x1, y1 = self.大漠对象.AiFindPic(*找图区域)
@@ -781,25 +895,33 @@ class WorkerThread(QThread):
             # 前往并打开回收NPC
             self.前往NPC("sale",控制器,img,config.组合回收图片区域)
             # F9打开背包
-            while True:
+            for i in range(100):
+                zz, xx, yy = self.大漠对象.AiFindPic(*config.开始区域)
+                if zz != -1:
+                    return
                 控制器.键盘点击(66)
                 z, x, y = self.大漠对象.AiFindPic(*config.回收_背包整理区域)
                 if z != -1:
-                    print("已打开背包")
                     break
-                time.sleep(0.01)
+                控制器.延时(100)
 
-            # 固定按顺序点击"一键回收"
+            # 固定按顺序点击"一键回收",通过观察背包中的元宝是否变化(卡屏函数)来判断当前回收是否完成
             x = 337
             y = 35
             for i in range(3):
+                zz, xx, yy = self.大漠对象.AiFindPic(*config.开始区域)
+                if zz != -1:
+                    return
                 time.sleep(1)
                 offset_x = random.randint(0,37)
                 offset_y = random.randint(0,4)
                 控制器.simple_move_with_left_click(x+offset_x,y+offset_y)
                 while True:
-                    time.sleep(0.01)
-                    ret = self.大漠对象.IsDisplayDead(1633,301,1718,317, 2)
+                    zz, xx, yy = self.大漠对象.AiFindPic(*config.开始区域)
+                    if zz != -1:
+                        return
+                    控制器.延时(100)
+                    ret = self.大漠对象.IsDisplayDead(1633,301,1718,317, 1)
                     if ret:
                         y = y + 16
                         break
@@ -809,25 +931,31 @@ class WorkerThread(QThread):
             x,y = self.前往NPC("store", 控制器,img,config.仓库界面区域)
             控制器._move_with_click("left",x,y,0,5,0,2)
 
-            time.sleep(1)
+            控制器.延时(1000)
             # 整理背包
             z, x, y = self.大漠对象.AiFindPic(*config.仓库_背包整理区域)
             if z != -1:
                 控制器._move_with_click("left",x,y,0,3,0,2)
 
-            time.sleep(1)
-            # # 右键逐个点击背包, 把背包所有东西放入仓库
-            # x = 1603                # 仓库存放时打开背包的第一个格子的中心x
-            # y = 148                 # 仓库存放时打开背包的第一个格子的中心y
-            # for i in range(5):
-            #     x = 1603
-            #     if i != 0:
-            #         y += 32         # 背包上下格子的间隔
-            #     for j in range(8):
-            #         offset_x = random.randint(-8,8)
-            #         offset_y = random.randint(-8,8)
-            #         控制器.simple_move_with_right_click(x+offset_x,y+offset_y)
-            #         x += 36         # 背包左右格子的间隔
+            控制器.延时(1000)
+            # 右键逐个点击背包, 把背包所有东西放入仓库
+            x = 1603                # 仓库存放时打开背包的第一个格子的中心x
+            y = 148                 # 仓库存放时打开背包的第一个格子的中心y
+            for i in range(5):
+                zz, xx, yy = self.大漠对象.AiFindPic(*config.开始区域)
+                if zz != -1:
+                    return
+                x = 1603
+                if i != 0:
+                    y += 32         # 背包上下格子的间隔
+                for j in range(8):
+                    zz, xx, yy = self.大漠对象.AiFindPic(*config.开始区域)
+                    if zz != -1:
+                        return
+                    offset_x = random.randint(-8,8)
+                    offset_y = random.randint(-8,8)
+                    控制器.simple_move_with_right_click(x+offset_x,y+offset_y)
+                    x += 36         # 背包左右格子的间隔
 
             # 前往并打开下图的NPC
             控制器.键盘点击(41)  # esc
@@ -1119,7 +1247,6 @@ class MyWindow(QMainWindow):
                 打怪控制.键盘点击(66)
                 z, x, y = dms_a[0].AiFindPic(*config.回收_背包整理区域)
                 if z != -1:
-                    print("已打开背包")
                     break
                 time.sleep(0.01)
 
@@ -1133,7 +1260,7 @@ class MyWindow(QMainWindow):
                 监控控制.simple_move_with_left_click(x + offset_x, y + offset_y)
                 while True:
                     time.sleep(0.01)
-                    ret = dms_a[0].IsDisplayDead(1633, 301, 1718, 317, 2)
+                    ret = dms_a[0].IsDisplayDead(1633, 301, 1718, 317, 1)
                     if ret:
                         y = y + 16
                         break
